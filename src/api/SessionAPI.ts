@@ -5,29 +5,36 @@
  * UI logic and state updates are handled by the caller (main.ts).
  */
 
-import type { ManagedSession } from '../../shared/types'
+import type { ClaudeMode, ManagedSession } from "../../shared/types";
 
 export interface SessionFlags {
-  continue?: boolean
-  skipPermissions?: boolean
-  chrome?: boolean
+  continue?: boolean;
+  skipPermissions?: boolean;
+  chrome?: boolean;
+}
+
+export interface CreateSessionOptions {
+  name?: string;
+  cwd?: string;
+  flags?: SessionFlags;
+  mode?: ClaudeMode;
 }
 
 export interface CreateSessionResponse {
-  ok: boolean
-  error?: string
-  session?: ManagedSession
+  ok: boolean;
+  error?: string;
+  session?: ManagedSession;
 }
 
 export interface SimpleResponse {
-  ok: boolean
-  error?: string
+  ok: boolean;
+  error?: string;
 }
 
 export interface ServerInfoResponse {
-  ok: boolean
-  cwd?: string
-  error?: string
+  ok: boolean;
+  cwd?: string;
+  error?: string;
 }
 
 /**
@@ -41,18 +48,19 @@ export function createSessionAPI(apiUrl: string) {
     async createSession(
       name?: string,
       cwd?: string,
-      flags?: SessionFlags
+      flags?: SessionFlags,
+      mode?: ClaudeMode,
     ): Promise<CreateSessionResponse> {
       try {
         const response = await fetch(`${apiUrl}/sessions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, cwd, flags }),
-        })
-        return await response.json()
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, cwd, flags, mode }),
+        });
+        return await response.json();
       } catch (e) {
-        console.error('Error creating session:', e)
-        return { ok: false, error: 'Network error' }
+        console.error("Error creating session:", e);
+        return { ok: false, error: "Network error" };
       }
     },
 
@@ -61,28 +69,31 @@ export function createSessionAPI(apiUrl: string) {
      */
     async getServerInfo(): Promise<ServerInfoResponse> {
       try {
-        const response = await fetch(`${apiUrl}/info`)
-        return await response.json()
+        const response = await fetch(`${apiUrl}/info`);
+        return await response.json();
       } catch (e) {
-        console.error('Error fetching server info:', e)
-        return { ok: false, error: 'Network error' }
+        console.error("Error fetching server info:", e);
+        return { ok: false, error: "Network error" };
       }
     },
 
     /**
      * Rename a managed session
      */
-    async renameSession(sessionId: string, name: string): Promise<SimpleResponse> {
+    async renameSession(
+      sessionId: string,
+      name: string,
+    ): Promise<SimpleResponse> {
       try {
         const response = await fetch(`${apiUrl}/sessions/${sessionId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name }),
-        })
-        return await response.json()
+        });
+        return await response.json();
       } catch (e) {
-        console.error('Error renaming session:', e)
-        return { ok: false, error: 'Network error' }
+        console.error("Error renaming session:", e);
+        return { ok: false, error: "Network error" };
       }
     },
 
@@ -91,18 +102,18 @@ export function createSessionAPI(apiUrl: string) {
      */
     async saveZonePosition(
       sessionId: string,
-      position: { q: number; r: number }
+      position: { q: number; r: number },
     ): Promise<SimpleResponse> {
       try {
         const response = await fetch(`${apiUrl}/sessions/${sessionId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ zonePosition: position }),
-        })
-        return await response.json()
+        });
+        return await response.json();
       } catch (e) {
-        console.error('Error saving zone position:', e)
-        return { ok: false, error: 'Network error' }
+        console.error("Error saving zone position:", e);
+        return { ok: false, error: "Network error" };
       }
     },
 
@@ -112,12 +123,12 @@ export function createSessionAPI(apiUrl: string) {
     async deleteSession(sessionId: string): Promise<SimpleResponse> {
       try {
         const response = await fetch(`${apiUrl}/sessions/${sessionId}`, {
-          method: 'DELETE',
-        })
-        return await response.json()
+          method: "DELETE",
+        });
+        return await response.json();
       } catch (e) {
-        console.error('Error deleting session:', e)
-        return { ok: false, error: 'Network error' }
+        console.error("Error deleting session:", e);
+        return { ok: false, error: "Network error" };
       }
     },
 
@@ -126,13 +137,16 @@ export function createSessionAPI(apiUrl: string) {
      */
     async restartSession(sessionId: string): Promise<SimpleResponse> {
       try {
-        const response = await fetch(`${apiUrl}/sessions/${sessionId}/restart`, {
-          method: 'POST',
-        })
-        return await response.json()
+        const response = await fetch(
+          `${apiUrl}/sessions/${sessionId}/restart`,
+          {
+            method: "POST",
+          },
+        );
+        return await response.json();
       } catch (e) {
-        console.error('Error restarting session:', e)
-        return { ok: false, error: 'Network error' }
+        console.error("Error restarting session:", e);
+        return { ok: false, error: "Network error" };
       }
     },
 
@@ -141,18 +155,18 @@ export function createSessionAPI(apiUrl: string) {
      */
     async sendPrompt(
       sessionId: string,
-      prompt: string
+      prompt: string,
     ): Promise<SimpleResponse> {
       try {
         const response = await fetch(`${apiUrl}/sessions/${sessionId}/prompt`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt }),
-        })
-        return await response.json()
+        });
+        return await response.json();
       } catch (e) {
-        console.error('Error sending prompt:', e)
-        return { ok: false, error: 'Network error' }
+        console.error("Error sending prompt:", e);
+        return { ok: false, error: "Network error" };
       }
     },
 
@@ -161,16 +175,36 @@ export function createSessionAPI(apiUrl: string) {
      */
     async linkSession(
       managedId: string,
-      claudeSessionId: string
+      claudeSessionId: string,
     ): Promise<void> {
       try {
         await fetch(`${apiUrl}/sessions/${managedId}/link`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ claudeSessionId }),
-        })
+        });
       } catch (e) {
-        console.error('Failed to link session on server:', e)
+        console.error("Failed to link session on server:", e);
+      }
+    },
+
+    /**
+     * Switch a session's Claude Code mode
+     */
+    async switchMode(
+      sessionId: string,
+      mode: ClaudeMode,
+    ): Promise<SimpleResponse> {
+      try {
+        const response = await fetch(`${apiUrl}/sessions/${sessionId}/mode`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode }),
+        });
+        return await response.json();
+      } catch (e) {
+        console.error("Error switching mode:", e);
+        return { ok: false, error: "Network error" };
       }
     },
 
@@ -179,12 +213,47 @@ export function createSessionAPI(apiUrl: string) {
      */
     async refreshSessions(): Promise<void> {
       try {
-        await fetch(`${apiUrl}/sessions/refresh`, { method: 'POST' })
+        await fetch(`${apiUrl}/sessions/refresh`, { method: "POST" });
       } catch (e) {
-        console.error('Error refreshing sessions:', e)
+        console.error("Error refreshing sessions:", e);
       }
     },
-  }
+
+    /**
+     * Create a zone group from two or more managed session IDs
+     */
+    async createGroup(
+      memberSessionIds: string[],
+      name?: string,
+    ): Promise<SimpleResponse> {
+      try {
+        const response = await fetch(`${apiUrl}/groups`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ memberSessionIds, name }),
+        });
+        return await response.json();
+      } catch (e) {
+        console.error("Error creating group:", e);
+        return { ok: false, error: "Network error" };
+      }
+    },
+
+    /**
+     * Dissolve a zone group
+     */
+    async deleteGroup(groupId: string): Promise<SimpleResponse> {
+      try {
+        const response = await fetch(`${apiUrl}/groups/${groupId}`, {
+          method: "DELETE",
+        });
+        return await response.json();
+      } catch (e) {
+        console.error("Error deleting group:", e);
+        return { ok: false, error: "Network error" };
+      }
+    },
+  };
 }
 
-export type SessionAPI = ReturnType<typeof createSessionAPI>
+export type SessionAPI = ReturnType<typeof createSessionAPI>;

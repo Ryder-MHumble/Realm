@@ -238,6 +238,96 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* Mode Radio Group */
+.modal-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-radio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.modal-radio:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.modal-radio:has(input:checked) {
+  background: rgba(167, 139, 250, 0.12);
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+.modal-radio input[type="radio"] {
+  accent-color: #a78bfa;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.radio-content {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.radio-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.modal-radio:has(input:checked) .radio-label {
+  color: #c4b5fd;
+}
+
+.radio-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Mode badge shown in session list */
+.session-mode-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.session-mode-badge.mode-auto-edit {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+
+.session-mode-badge.mode-plan {
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
+}
+
+.session-mode-badge.mode-ask-before-edit {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.session-mode-badge.mode-group {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
 /* New Session Modal */
 #new-session-modal {
   position: fixed;
@@ -835,6 +925,31 @@
   max-height: 200px;
   overflow-y: auto;
   margin-bottom: 16px;
+  /* Auto-hiding scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.permission-context:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.permission-context::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.permission-context::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.permission-context::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.permission-context:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .permission-buttons {
@@ -1295,6 +1410,32 @@
   padding: 16px 20px;
   overflow-y: auto;
   flex: 1;
+  /* Auto-hiding scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.zone-info-body:hover,
+.zone-info-body.scrolling {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.zone-info-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.zone-info-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zone-info-body::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.zone-info-body:hover::-webkit-scrollbar-thumb,
+.zone-info-body.scrolling::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* Header */
@@ -1568,6 +1709,30 @@
   gap: 4px;
   max-height: 150px;
   overflow-y: auto;
+  /* Auto-hiding scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.zone-info-files:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.zone-info-files::-webkit-scrollbar {
+  width: 6px;
+}
+
+.zone-info-files::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zone-info-files::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.zone-info-files:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .zone-info-file {

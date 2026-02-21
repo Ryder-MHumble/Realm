@@ -51,10 +51,36 @@
 #sessions-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   padding: 0 8px 8px;
   max-height: 250px;
   overflow-y: auto;
+  /* Auto-hiding scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+#sessions-list:hover,
+#sessions-list.scrolling {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+#sessions-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+#sessions-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#sessions-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+#sessions-list:hover::-webkit-scrollbar-thumb,
+#sessions-list.scrolling::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 #managed-sessions {
@@ -70,20 +96,24 @@
   gap: 8px;
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.02);
-  border: 1px solid transparent;
-  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s ease;
   position: relative;
 }
 
 .session-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(2px);
 }
 
 .session-item.active {
-  background: rgba(167, 139, 250, 0.12);
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.15) 0%, rgba(167, 139, 250, 0.06) 100%);
   border-color: rgba(167, 139, 250, 0.3);
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.08);
 }
 
 .session-item.active .session-name {
@@ -153,7 +183,7 @@
 
 .session-item .session-detail {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.5);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

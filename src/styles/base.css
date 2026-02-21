@@ -42,10 +42,74 @@ body {
   position: relative;
 }
 
+/* Auto-hiding scrollbar utility */
+.auto-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.auto-scrollbar:hover,
+.auto-scrollbar.scrolling {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.auto-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.auto-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.auto-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.auto-scrollbar:hover::-webkit-scrollbar-thumb,
+.auto-scrollbar.scrolling::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.auto-scrollbar:hover::-webkit-scrollbar-thumb:hover,
+.auto-scrollbar.scrolling::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
 /* Common animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideOutDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    max-height: 200px;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-width: 0;
+    overflow: hidden;
+  }
 }
 
 @keyframes pulse {
