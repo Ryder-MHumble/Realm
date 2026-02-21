@@ -111,6 +111,12 @@
           </div>
         </div>
 
+        <!-- Panel Tab Switcher -->
+        <div id="panel-tabs">
+          <button class="panel-tab active" data-tab="feed">Activity</button>
+          <button class="panel-tab" data-tab="im">Team Chat</button>
+        </div>
+
         <!-- Session Management -->
         <div id="sessions-panel">
           <div id="sessions-list">
@@ -141,6 +147,9 @@
           </div>
           <button id="feed-scroll-bottom">↓ Jump to latest</button>
         </div>
+
+        <!-- IM Channel (hidden by default, shown on Team Chat tab) -->
+        <div id="im-channel-wrapper" class="hidden"></div>
 
         <div id="prompt-container">
           <div id="voice-transcript">
@@ -181,13 +190,40 @@
         </div>
 
         <div class="modal-field">
+          <label>Mode</label>
+          <div class="modal-radio-group">
+            <label class="modal-radio" data-mode="auto-edit">
+              <input type="radio" name="session-mode" value="auto-edit" checked />
+              <div class="radio-content">
+                <span class="radio-label">Auto-edit</span>
+                <span class="radio-desc">Edits files without asking</span>
+              </div>
+            </label>
+            <label class="modal-radio" data-mode="plan">
+              <input type="radio" name="session-mode" value="plan" />
+              <div class="radio-content">
+                <span class="radio-label">Plan</span>
+                <span class="radio-desc">Plans before making changes</span>
+              </div>
+            </label>
+            <label class="modal-radio" data-mode="ask-before-edit">
+              <input type="radio" name="session-mode" value="ask-before-edit" />
+              <div class="radio-content">
+                <span class="radio-label">Ask before edit</span>
+                <span class="radio-desc">Confirms each file change</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-field">
           <label>Options</label>
           <div class="modal-checkboxes">
             <label class="modal-checkbox">
               <input type="checkbox" id="session-opt-continue" />
               <span class="checkbox-label">Continue <code>-c</code></span>
             </label>
-            <label class="modal-checkbox">
+            <label class="modal-checkbox" id="session-opt-skip-perms-row">
               <input type="checkbox" id="session-opt-skip-perms" checked />
               <span class="checkbox-label">Skip permissions <code>--dangerously-skip-permissions</code></span>
             </label>
