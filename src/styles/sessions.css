@@ -1,10 +1,180 @@
-/* Sessions panel and session items */
+/* Session dock - horizontal pill bar in command bar */
 
-/* Sessions Panel */
-#sessions-panel {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+/* ===== Session Dock ===== */
+#session-dock {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 50%;
+  overflow-x: auto;
+  flex-shrink: 0;
+  padding: 2px 0;
+  /* Hide scrollbar but allow scroll */
+  scrollbar-width: none;
 }
 
+#session-dock::-webkit-scrollbar {
+  display: none;
+}
+
+/* ===== Session Pill ===== */
+.session-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.session-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.session-pill:active {
+  background: rgba(255, 255, 255, 0.06);
+  transition-duration: 0.05s;
+}
+
+.session-pill.active {
+  background: rgba(167, 139, 250, 0.15);
+  border-color: rgba(167, 139, 250, 0.35);
+}
+
+.session-pill.active .pill-name {
+  color: #c4b5fd;
+}
+
+.session-pill.active .pill-hotkey {
+  color: rgba(167, 139, 250, 0.7);
+}
+
+/* Status dot */
+.pill-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #555;
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.pill-status.idle {
+  background: #4ade80;
+  box-shadow: 0 0 4px rgba(74, 222, 128, 0.5);
+}
+
+.pill-status.working {
+  background: #fbbf24;
+  box-shadow: 0 0 4px rgba(251, 191, 36, 0.5);
+  animation: pillStatusPulse 1.5s ease-in-out infinite;
+}
+
+.pill-status.waiting {
+  background: #fb923c;
+  box-shadow: 0 0 4px rgba(251, 146, 60, 0.6);
+  animation: pillStatusPulse 0.8s ease-in-out infinite;
+}
+
+.pill-status.offline {
+  background: #ef4444;
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+}
+
+@keyframes pillStatusPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.3); }
+}
+
+/* Offline pill dimming */
+.session-pill:has(.pill-status.offline) {
+  opacity: 0.55;
+}
+
+.session-pill:has(.pill-status.offline):hover {
+  opacity: 0.8;
+}
+
+/* Pill name */
+.pill-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pill hotkey badge */
+.pill-hotkey {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: rgba(255, 255, 255, 0.25);
+  min-width: 12px;
+  text-align: center;
+}
+
+/* Needs attention state */
+.session-pill.needs-attention {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.4);
+  animation: pillAttentionPulse 2s ease-in-out infinite;
+}
+
+.session-pill.needs-attention .pill-name {
+  color: #fbbf24;
+}
+
+@keyframes pillAttentionPulse {
+  0%, 100% {
+    background: rgba(251, 191, 36, 0.12);
+    box-shadow: none;
+  }
+  50% {
+    background: rgba(251, 191, 36, 0.2);
+    box-shadow: 0 0 12px rgba(251, 191, 36, 0.25);
+  }
+}
+
+/* Department group color accent (bottom border) */
+.session-pill.grouped {
+  border-bottom-width: 2px;
+}
+
+/* ===== New Session Button ===== */
+#new-session-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  color: #4ade80;
+  font-size: 16px;
+  font-weight: 300;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+#new-session-pill:hover {
+  background: rgba(74, 222, 128, 0.2);
+  border-color: rgba(74, 222, 128, 0.5);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.15);
+  transform: scale(1.1);
+}
+
+/* ===== Attention Badge ===== */
 .attention-badge {
   display: inline-flex;
   align-items: center;
@@ -12,15 +182,14 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #000;
   background: #fbbf24;
   border-radius: 9px;
-  margin-left: 6px;
+  margin-left: 4px;
   animation: attention-badge-pulse 1.5s ease-in-out infinite;
-  text-transform: none;
-  letter-spacing: 0;
+  flex-shrink: 0;
 }
 
 .attention-badge.hidden {
@@ -32,274 +201,10 @@
   50% { transform: scale(1.1); }
 }
 
-#new-session-btn {
-  font-size: 11px;
-  padding: 4px 10px;
-  background: rgba(74, 222, 128, 0.2);
-  border: 1px solid rgba(74, 222, 128, 0.4);
-  border-radius: 4px;
-  color: #4ade80;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-#new-session-btn:hover {
-  background: rgba(74, 222, 128, 0.3);
-  border-color: rgba(74, 222, 128, 0.6);
-}
-
-#sessions-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 8px 8px;
-  max-height: 250px;
-  overflow-y: auto;
-  /* Auto-hiding scrollbar */
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-
-#sessions-list:hover,
-#sessions-list.scrolling {
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-}
-
-#sessions-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-#sessions-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-#sessions-list::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 3px;
-}
-
-#sessions-list:hover::-webkit-scrollbar-thumb,
-#sessions-list.scrolling::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-#managed-sessions {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 6px;
-}
-
-/* Unified session item style - compact card layout */
-.session-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.session-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  border-color: rgba(255, 255, 255, 0.1);
-  transform: translateX(2px);
-}
-
-.session-item.active {
-  background: linear-gradient(135deg, rgba(167, 139, 250, 0.15) 0%, rgba(167, 139, 250, 0.06) 100%);
-  border-color: rgba(167, 139, 250, 0.3);
-  box-shadow: 0 0 12px rgba(167, 139, 250, 0.08);
-}
-
-.session-item.active .session-name {
-  color: #c4b5fd;
-}
-
-.session-item .session-icon {
-  font-size: 14px;
-  width: 20px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.session-item .session-status {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #666;
-  flex-shrink: 0;
-}
-
-.session-item .session-status.idle {
-  background: #4ade80;
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
-}
-
-.session-item .session-status.working {
-  background: #fbbf24;
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
-  animation: pulse 1s infinite;
-}
-
-.session-item .session-status.waiting {
-  background: #fb923c;
-  box-shadow: 0 0 8px rgba(251, 146, 60, 0.5);
-  animation: pulse 0.5s infinite;
-}
-
-.session-item .session-status.offline {
-  background: #ef4444;
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
-}
-
-/* Offline session styling */
-.session-item:has(.session-status.offline) {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.session-item:has(.session-status.offline):hover {
-  background: rgba(239, 68, 68, 0.15);
-}
-
-.session-item .session-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.session-item .session-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.session-item .session-detail {
+/* ===== Empty state (shown in dock when no sessions) ===== */
+.sessions-empty-hint {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.3);
+  padding: 2px 8px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
-}
-
-.session-item .session-detail.working {
-  color: #fbbf24;
-}
-
-.session-item .session-prompt {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
-  font-style: italic;
-  /* Hidden in compact view */
-  display: none;
-}
-
-.session-item .session-actions {
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-  /* Overlay on hover instead of taking space */
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(30, 30, 35, 0.95);
-  padding: 4px;
-  border-radius: 4px;
-  pointer-events: none;
-}
-
-.session-item:hover .session-actions {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.session-item .session-actions button {
-  padding: 4px 8px;
-  font-size: 11px;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  border-radius: 4px;
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-  transition: all 0.1s;
-}
-
-.session-item .session-actions button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-}
-
-.session-item .session-actions .delete-btn:hover {
-  background: rgba(248, 113, 113, 0.3);
-  color: #f87171;
-}
-
-.session-item.all-sessions {
-  margin-bottom: 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px 8px 0 0;
-  padding-bottom: 12px;
-  /* Full width for "All Sessions" header */
-  grid-column: 1 / -1;
-}
-
-.session-item.needs-attention {
-  background: rgba(251, 191, 36, 0.12);
-  border-color: rgba(251, 191, 36, 0.4);
-  animation: attention-pulse 2s ease-in-out infinite;
-}
-
-.session-item.needs-attention .session-name {
-  color: #fbbf24;
-}
-
-.session-item .session-detail.attention {
-  color: #fbbf24;
-}
-
-@keyframes attention-pulse {
-  0%, 100% {
-    background: rgba(251, 191, 36, 0.12);
-    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
-  }
-  50% {
-    background: rgba(251, 191, 36, 0.2);
-    box-shadow: 0 0 12px 0 rgba(251, 191, 36, 0.3);
-  }
-}
-
-.session-item .session-hotkey {
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  font-size: 10px;
-  font-weight: 600;
-  font-family: monospace;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.5);
-  flex-shrink: 0;
-}
-
-.session-item.active .session-hotkey {
-  background: rgba(167, 139, 250, 0.2);
-  border-color: rgba(167, 139, 250, 0.4);
-  color: #c4b5fd;
 }

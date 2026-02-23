@@ -39,9 +39,9 @@
             <span id="username" class="hud-user">...</span>
             <span id="status-text"></span>
             <span class="hud-sep">|</span>
-            <span id="token-counter" class="hud-tokens" title="Tokens used this session">⚡ 0 tok</span>
+            <span id="token-counter" class="hud-tokens" data-i18n-title="hud.tokensUsed" title="Tokens used this session">⚡ 0 tok</span>
             <span class="hud-sep">|</span>
-            <button id="settings-btn" class="hud-btn" title="Settings">⚙️</button>
+            <button id="settings-btn" class="hud-btn" data-i18n-title="tooltip.settings" title="Settings">⚙️</button>
             <!-- Debug: FPS counter (uncomment to enable)
             <span class="hud-sep">|</span>
             <span id="fps" class="hud-fps">-- FPS</span>
@@ -58,7 +58,7 @@
         <!-- Keybind Helper (bottom-left) -->
         <div id="keybind-helper">
           <div class="keybind-list">
-            <span class="keybind"><kbd>1-6</kbd> sessions · <kbd>`</kbd><kbd>0</kbd> all · <kbd>Tab</kbd> focus · <kbd>D</kbd> draw</span>
+            <span class="keybind"><kbd>1-6</kbd> <span data-i18n="hud.keybindSessions">sessions</span> · <kbd>`</kbd><kbd>0</kbd> <span data-i18n="hud.keybindAll">all</span> · <kbd>Tab</kbd> <span data-i18n="hud.keybindFocus">focus</span> · <kbd>D</kbd> <span data-i18n="hud.keybindDraw">draw</span></span>
           </div>
         </div>
 
@@ -66,7 +66,7 @@
         <div id="voice-control" class="voice-control">
           <!-- Idle state: mic button with hint -->
           <div class="voice-idle">
-            <button type="button" id="voice-btn" class="voice-trigger" title="Start voice input">🎤</button>
+            <button type="button" id="voice-btn" class="voice-trigger" data-i18n-title="voice.startVoice" title="Start voice input">🎤</button>
             <span class="voice-hint"><kbd>Ctrl</kbd><kbd>M</kbd></span>
           </div>
           <!-- Recording state: bars + dot -->
@@ -85,15 +85,15 @@
             </div>
             <div class="voice-status-row">
               <div class="voice-record-dot"></div>
-              <span class="voice-send-hint"><kbd>Enter</kbd> to send</span>
+              <span class="voice-send-hint"><kbd>⌘/Ctrl+Enter</kbd> to send</span>
             </div>
           </div>
         </div>
 
         <!-- Draw Mode UI (bottom right of scene) -->
         <div id="draw-indicator">
-          <span class="draw-mode-label">DRAW MODE</span>
-          <span class="draw-mode-hint"><kbd>D</kbd> exit · <kbd>X</kbd> clear · <kbd>Q</kbd><kbd>E</kbd> brush · <kbd>R</kbd> 3D</span>
+          <span class="draw-mode-label" data-i18n="draw.label">DRAW MODE</span>
+          <span class="draw-mode-hint"><kbd>D</kbd> <span data-i18n="draw.exit">exit</span> · <kbd>X</kbd> <span data-i18n="draw.clear">clear</span> · <kbd>Q</kbd><kbd>E</kbd> <span data-i18n="draw.brush">brush</span> · <kbd>R</kbd> <span data-i18n="draw.threeD">3D</span></span>
         </div>
         <div id="draw-palette">
           <!-- Populated by DrawMode.ts -->
@@ -101,72 +101,93 @@
 
       </div>
 
-      <!-- Right: Activity Feed -->
-      <div id="feed-panel">
-        <div id="feed-header">
-          <h2>Vibecraft <span class="muted">(vibecraft.sh)</span></h2>
-          <div class="feed-header-right">
-            <span id="attention-badge" class="attention-badge hidden">0</span>
-            <button id="about-btn" class="feed-about-btn" title="About Vibecraft">?</button>
+      <!-- Bottom Command Bar (floating overlay) -->
+      <div id="command-bar" class="glass-panel">
+        <div id="session-dock">
+          <div class="session-pill session-pill-all active" data-session="all">
+            <span class="pill-hotkey">0</span>
+            <span class="pill-name" data-i18n="common.all">All</span>
           </div>
+          <div id="session-pills"><!-- Dynamic pills from JS --></div>
+          <button id="new-session-pill" data-i18n-title="tooltip.newZone" title="New Zone">+</button>
+          <span id="attention-badge" class="attention-badge hidden">0</span>
         </div>
-
-        <!-- Panel Tab Switcher -->
-        <div id="panel-tabs">
-          <button class="panel-tab active" data-tab="feed">Activity</button>
-          <button class="panel-tab" data-tab="im">Team Chat</button>
-        </div>
-
-        <!-- Session Management -->
-        <div id="sessions-panel">
-          <div id="sessions-list">
-            <div class="session-item all-sessions active" data-session="all">
-              <div class="session-hotkey">0</div>
-              <div class="session-icon">📋</div>
-              <div class="session-info">
-                <div class="session-name">All Sessions</div>
-                <div class="session-detail" id="all-sessions-count">No active sessions</div>
-              </div>
-            </div>
-            <div id="managed-sessions"></div>
-          </div>
-        </div>
-
-        <!-- Terminal output panel (hidden by default) -->
-        <div id="terminal-panel" class="hidden">
-          <div id="terminal-output"></div>
-        </div>
-
-        <div id="activity-feed-wrapper">
-          <div id="activity-feed">
-            <div id="feed-empty">
-              <div id="feed-empty-icon">🛠️</div>
-              <h3>Waiting for activity</h3>
-              <p>Start using Claude Code to see events here</p>
-            </div>
-          </div>
-          <button id="feed-scroll-bottom">↓ Jump to latest</button>
-        </div>
-
-        <!-- IM Channel (hidden by default, shown on Team Chat tab) -->
-        <div id="im-channel-wrapper" class="hidden"></div>
-
-        <div id="prompt-container">
+        <div class="command-bar-divider"></div>
+        <div id="prompt-section">
           <div id="voice-transcript">
-            <div class="transcript-label"><span class="recording-dot"></span> Listening...</div>
+            <div class="transcript-label"><span class="recording-dot"></span> <span data-i18n="voice.listening">Listening...</span></div>
             <div id="voice-transcript-text"></div>
           </div>
           <form id="prompt-form">
             <div class="input-wrapper">
-              <textarea id="prompt-input" placeholder="Prompt..." autocomplete="off" rows="1"></textarea>
+              <textarea id="prompt-input" data-i18n-placeholder="commandBar.placeholder" placeholder="Prompt..." autocomplete="off" rows="1"></textarea>
             </div>
-            <button type="submit" id="prompt-submit"><span class="btn-icon">↗</span> Send</button>
-            <button type="button" id="prompt-cancel"><span class="btn-icon">◼</span> Stop</button>
+            <button type="submit" id="prompt-submit">↗ <span data-i18n="common.send">Send</span></button>
+            <button type="button" id="prompt-cancel">◼ <span data-i18n="common.stop">Stop</span></button>
           </form>
           <div id="prompt-options">
             <span id="prompt-target"></span>
+            <div id="mode-selector">
+              <button id="mode-selector-btn" data-i18n-title="mode.switchMode" title="Switch Claude Code mode">
+                <span id="mode-selector-icon"></span>
+                <span id="mode-selector-label" data-i18n="mode.autoEdit">Auto-edit</span>
+                <span class="mode-chevron">▾</span>
+              </button>
+              <div id="mode-selector-dropdown" class="hidden">
+                <button class="mode-option" data-mode="auto-edit">
+                  <span class="mode-option-icon">⚡</span>
+                  <span class="mode-option-text">
+                    <span class="mode-option-label" data-i18n="mode.autoEdit">Auto-edit</span>
+                    <span class="mode-option-desc" data-i18n="mode.autoEditDesc">Edits files automatically</span>
+                  </span>
+                  <span class="mode-check">✓</span>
+                </button>
+                <button class="mode-option" data-mode="plan">
+                  <span class="mode-option-icon">📋</span>
+                  <span class="mode-option-text">
+                    <span class="mode-option-label" data-i18n="mode.plan">Plan</span>
+                    <span class="mode-option-desc" data-i18n="mode.planDesc">Plans before making changes</span>
+                  </span>
+                  <span class="mode-check">✓</span>
+                </button>
+                <button class="mode-option" data-mode="ask-before-edit">
+                  <span class="mode-option-icon">🔒</span>
+                  <span class="mode-option-text">
+                    <span class="mode-option-label" data-i18n="mode.askBeforeEdit">Ask before edit</span>
+                    <span class="mode-option-desc" data-i18n="mode.askBeforeEditDesc">Confirms each file change</span>
+                  </span>
+                  <span class="mode-check">✓</span>
+                </button>
+              </div>
+            </div>
             <span id="prompt-status"></span>
           </div>
+        </div>
+        <div class="command-bar-divider"></div>
+        <button id="feed-toggle-btn" class="feed-toggle active" data-i18n-title="tooltip.toggleFeed" title="Toggle Activity Feed (Tab)">
+          <span class="feed-toggle-icon">📋</span>
+        </button>
+      </div>
+
+      <!-- Activity Feed Drawer (right-side slide-out, starts closed) -->
+      <div id="feed-drawer">
+        <div id="feed-drawer-header">
+          <span class="drawer-title" data-i18n="feed.title">Activity</span>
+          <div class="drawer-header-right">
+            <button id="about-btn" class="feed-about-btn" data-i18n-title="tooltip.aboutVibecraft" title="About Vibecraft">?</button>
+            <button id="feed-drawer-close" class="drawer-close-btn" data-i18n-title="tooltip.closeFeed" title="Close (Tab)">&times;</button>
+          </div>
+        </div>
+        <div id="activity-feed-wrapper">
+          <div id="activity-feed">
+            <div id="feed-empty">
+              <div id="feed-empty-icon">🛠️</div>
+              <h3 data-i18n="feed.emptyTitle">Waiting for activity</h3>
+              <p data-i18n="feed.emptyDesc">Start using Claude Code to see events here</p>
+              <p class="feed-empty-hint" data-i18n="feed.emptyHint">Create a zone to get started</p>
+            </div>
+          </div>
+          <button id="feed-scroll-bottom">↓ <span data-i18n="feed.jumpToLatest">Jump to latest</span></button>
         </div>
       </div>
     </div>
@@ -175,68 +196,68 @@
     <div id="new-session-modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>New Zone</h3>
+          <h3 data-i18n="newZone.title">New Zone</h3>
         </div>
 
         <div class="modal-field">
-          <label for="session-cwd-input">Directory</label>
-          <input type="text" id="session-cwd-input" placeholder="e.g. /home/user/my-project" autocomplete="off" />
-          <div class="field-hint">Default: <code id="modal-default-cwd">~</code></div>
+          <label for="session-cwd-input" data-i18n="newZone.directory">Directory</label>
+          <input type="text" id="session-cwd-input" data-i18n-placeholder="newZone.dirPlaceholder" placeholder="e.g. /home/user/my-project" autocomplete="off" />
+          <div class="field-hint"><span data-i18n="newZone.defaultHint">Default: </span><code id="modal-default-cwd">~</code></div>
         </div>
 
         <div class="modal-field">
-          <label for="session-name-input">Name</label>
-          <input type="text" id="session-name-input" placeholder="Auto-filled from directory..." autocomplete="off" />
+          <label for="session-name-input" data-i18n="newZone.name">Name</label>
+          <input type="text" id="session-name-input" data-i18n-placeholder="newZone.namePlaceholder" placeholder="Auto-filled from directory..." autocomplete="off" />
         </div>
 
         <div class="modal-field">
-          <label>Mode</label>
+          <label data-i18n="newZone.mode">Mode</label>
           <div class="modal-radio-group">
             <label class="modal-radio" data-mode="auto-edit">
               <input type="radio" name="session-mode" value="auto-edit" checked />
               <div class="radio-content">
-                <span class="radio-label">Auto-edit</span>
-                <span class="radio-desc">Edits files without asking</span>
+                <span class="radio-label" data-i18n="mode.autoEdit">Auto-edit</span>
+                <span class="radio-desc" data-i18n="mode.autoEditDesc">Edits files without asking</span>
               </div>
             </label>
             <label class="modal-radio" data-mode="plan">
               <input type="radio" name="session-mode" value="plan" />
               <div class="radio-content">
-                <span class="radio-label">Plan</span>
-                <span class="radio-desc">Plans before making changes</span>
+                <span class="radio-label" data-i18n="mode.plan">Plan</span>
+                <span class="radio-desc" data-i18n="mode.planDesc">Plans before making changes</span>
               </div>
             </label>
             <label class="modal-radio" data-mode="ask-before-edit">
               <input type="radio" name="session-mode" value="ask-before-edit" />
               <div class="radio-content">
-                <span class="radio-label">Ask before edit</span>
-                <span class="radio-desc">Confirms each file change</span>
+                <span class="radio-label" data-i18n="mode.askBeforeEdit">Ask before edit</span>
+                <span class="radio-desc" data-i18n="mode.askBeforeEditDesc">Confirms each file change</span>
               </div>
             </label>
           </div>
         </div>
 
         <div class="modal-field">
-          <label>Options</label>
+          <label data-i18n="newZone.options">Options</label>
           <div class="modal-checkboxes">
             <label class="modal-checkbox">
               <input type="checkbox" id="session-opt-continue" />
-              <span class="checkbox-label">Continue <code>-c</code></span>
+              <span class="checkbox-label"><span data-i18n="newZone.optContinue">Continue</span> <code>-c</code></span>
             </label>
             <label class="modal-checkbox" id="session-opt-skip-perms-row">
               <input type="checkbox" id="session-opt-skip-perms" checked />
-              <span class="checkbox-label">Skip permissions <code>--dangerously-skip-permissions</code></span>
+              <span class="checkbox-label"><span data-i18n="newZone.optSkipPerms">Skip permissions</span> <code>--dangerously-skip-permissions</code></span>
             </label>
             <label class="modal-checkbox">
               <input type="checkbox" id="session-opt-chrome" />
-              <span class="checkbox-label">Chrome <code>--chrome</code></span>
+              <span class="checkbox-label"><span data-i18n="newZone.optChrome">Chrome</span> <code>--chrome</code></span>
             </label>
           </div>
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-cancel" id="modal-cancel">✕ Cancel</button>
-          <button type="button" class="modal-btn modal-btn-create" id="modal-create">+ Create</button>
+          <button type="button" class="modal-btn modal-btn-cancel" id="modal-cancel">✕ <span data-i18n="common.cancel">Cancel</span></button>
+          <button type="button" class="modal-btn modal-btn-create" id="modal-create">+ <span data-i18n="common.create">Create</span></button>
         </div>
       </div>
     </div>
@@ -245,73 +266,81 @@
     <div id="settings-modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>Settings</h3>
+          <h3 data-i18n="settings.title">Settings</h3>
         </div>
 
         <div class="modal-field">
-          <label>Audio</label>
+          <label data-i18n="settings.language">Language</label>
+          <div class="settings-language-row">
+            <button type="button" class="lang-btn" data-lang="en">English</button>
+            <button type="button" class="lang-btn" data-lang="zh">中文</button>
+          </div>
+        </div>
+
+        <div class="modal-field">
+          <label data-i18n="settings.audio">Audio</label>
           <div class="settings-slider-row">
-            <span class="slider-label">Volume</span>
+            <span class="slider-label" data-i18n="settings.volume">Volume</span>
             <input type="range" id="settings-volume" class="settings-slider" min="0" max="100" value="70" />
             <span id="settings-volume-value" class="slider-value">70%</span>
           </div>
           <div class="settings-checkbox-row">
             <label class="checkbox-label">
               <input type="checkbox" id="settings-spatial-audio" checked />
-              <span>Spatial Audio</span>
+              <span data-i18n="settings.spatialAudio">Spatial Audio</span>
             </label>
-            <span class="field-hint-inline">Volume/pan based on zone position</span>
+            <span class="field-hint-inline" data-i18n="settings.spatialHint">Volume/pan based on zone position</span>
           </div>
         </div>
 
         <div class="modal-field">
-          <label>Privacy</label>
+          <label data-i18n="settings.privacy">Privacy</label>
           <div class="settings-checkbox-row">
             <label class="checkbox-label">
               <input type="checkbox" id="settings-streaming-mode" />
-              <span>Streaming Mode</span>
+              <span data-i18n="settings.streamingMode">Streaming Mode</span>
             </label>
-            <span class="field-hint-inline">Hide username for privacy</span>
+            <span class="field-hint-inline" data-i18n="settings.streamingHint">Hide username for privacy</span>
           </div>
         </div>
 
         <div class="modal-field">
-          <label>World</label>
+          <label data-i18n="settings.world">World</label>
           <div class="settings-slider-row">
-            <span class="slider-label">Grid Size</span>
+            <span class="slider-label" data-i18n="settings.gridSize">Grid Size</span>
             <input type="range" id="settings-grid-size" class="settings-slider" min="5" max="80" value="20" />
             <span id="settings-grid-size-value" class="slider-value">20</span>
           </div>
-          <div class="field-hint">Number of hex rings from center. Larger = more space, may impact performance.</div>
+          <div class="field-hint" data-i18n="settings.gridHint">Number of hex rings from center. Larger = more space, may impact performance.</div>
         </div>
 
         <div class="modal-field">
-          <label>Agent Connection</label>
+          <label data-i18n="settings.agentConnection">Agent Connection</label>
           <div class="settings-port-row">
             <span class="port-label">localhost:</span>
             <input type="number" id="settings-port" value="4003" min="1" max="65535" />
             <span id="settings-port-status" class="port-status"></span>
           </div>
-          <div class="field-hint">Port where the Vibecraft agent is running. Changes require refresh.</div>
+          <div class="field-hint" data-i18n="settings.portHint">Port where the Vibecraft agent is running. Changes require refresh.</div>
         </div>
 
         <div class="modal-field">
-          <label>Sessions</label>
+          <label data-i18n="settings.sessions">Sessions</label>
           <div class="settings-actions">
-            <button type="button" class="settings-action-btn" id="settings-refresh-sessions">🔄 Refresh Sessions</button>
+            <button type="button" class="settings-action-btn" id="settings-refresh-sessions">🔄 <span data-i18n="settings.refreshSessions">Refresh Sessions</span></button>
           </div>
         </div>
 
         <div class="modal-field">
-          <label>Keyboard Shortcuts</label>
+          <label data-i18n="settings.keyboardShortcuts">Keyboard Shortcuts</label>
           <div id="keybind-settings" class="keybind-settings">
             <!-- Dynamically populated by KeybindSettings.ts -->
           </div>
-          <div class="field-hint">Click a keybind to change it. Press the new key combination, or Escape to cancel.</div>
+          <div class="field-hint" data-i18n="settings.keybindHint">Click a keybind to change it. Press the new key combination, or Escape to cancel.</div>
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-cancel" id="settings-close">✕ Close</button>
+          <button type="button" class="modal-btn modal-btn-cancel" id="settings-close">✕ <span data-i18n="common.close">Close</span></button>
         </div>
       </div>
     </div>
@@ -320,38 +349,38 @@
     <div id="about-modal">
       <div class="modal-content about-modal-content">
         <div class="modal-header">
-          <h3>Vibecraft</h3>
+          <h3 data-i18n="about.title">Vibecraft</h3>
         </div>
 
         <div class="about-description">
-          <p>Vibecraft is a A 3D visualization app for Claude Code.</p>
-          <p>Watch and manage your claudes in real-time - now featuring hexagonal grids!</p>
-          <p class="about-subtitle">Vibecraft syncs with claude code instances running on your own machine. No files or
+          <p data-i18n="about.description">Vibecraft is a 3D visualization app for Claude Code.</p>
+          <p data-i18n="about.subtitle">Watch and manage your claudes in real-time - now featuring hexagonal grids!</p>
+          <p class="about-subtitle" data-i18n="about.privacyNote">Vibecraft syncs with claude code instances running on your own machine. No files or
           code are sent to the web server.</p>
         </div>
 
         <div class="about-section">
-          <div class="about-section-title">Commands</div>
+          <div class="about-section-title" data-i18n="about.commands">Commands</div>
           <div class="about-commands">
-            <div class="about-cmd"><code>npx vibecraft</code><span>Start server</span></div>
-            <div class="about-cmd"><code>npx vibecraft doctor</code><span>Diagnose issues</span></div>
-            <div class="about-cmd"><code>npx vibecraft setup</code><span>Reinstall hooks</span></div>
-            <div class="about-cmd"><code>npx vibecraft uninstall</code><span>Remove hooks</span></div>
+            <div class="about-cmd"><code>npx vibecraft</code><span data-i18n="about.startServer">Start server</span></div>
+            <div class="about-cmd"><code>npx vibecraft doctor</code><span data-i18n="about.diagnoseIssues">Diagnose issues</span></div>
+            <div class="about-cmd"><code>npx vibecraft setup</code><span data-i18n="about.reinstallHooks">Reinstall hooks</span></div>
+            <div class="about-cmd"><code>npx vibecraft uninstall</code><span data-i18n="about.removeHooks">Remove hooks</span></div>
           </div>
         </div>
 
         <div class="about-section">
-          <div class="about-section-title">Troubleshooting</div>
-          <p class="about-help-text">If a zone gets stuck, Claude Code may be waiting for input or in an unknown state. Attach to the tmux session to see what's happening:</p>
+          <div class="about-section-title" data-i18n="about.troubleshooting">Troubleshooting</div>
+          <p class="about-help-text" data-i18n="about.troubleshootingHelp">If a zone gets stuck, Claude Code may be waiting for input or in an unknown state. Attach to the tmux session to see what's happening:</p>
           <div class="about-commands">
-            <div class="about-cmd"><code>tmux ls</code><span>List sessions</span></div>
-            <div class="about-cmd"><code>tmux attach -t <em>session</em></code><span>Attach to session</span></div>
+            <div class="about-cmd"><code>tmux ls</code><span data-i18n="about.listSessions">List sessions</span></div>
+            <div class="about-cmd"><code>tmux attach -t <em>session</em></code><span data-i18n="about.attachToSession">Attach to session</span></div>
           </div>
         </div>
 
         <div class="about-section">
-          <div class="about-section-title">Voice Input</div>
-          <p class="about-help-text">To enable voice input, add your Deepgram API key to <code>.env</code>:</p>
+          <div class="about-section-title" data-i18n="about.voiceInput">Voice Input</div>
+          <p class="about-help-text" data-i18n-html="about.voiceHelp">To enable voice input, add your Deepgram API key to <code>.env</code>:</p>
           <div class="about-commands">
             <div class="about-cmd"><code>DEEPGRAM_API_KEY=your_key_here</code></div>
           </div>
@@ -364,7 +393,7 @@
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-cancel" id="about-close">Close</button>
+          <button type="button" class="modal-btn modal-btn-cancel" id="about-close" data-i18n="common.close">Close</button>
         </div>
       </div>
     </div>
@@ -373,8 +402,8 @@
     <div id="question-modal">
       <div class="modal-content question-modal-content">
         <div class="modal-header">
-          <span class="question-badge" id="question-badge">Question</span>
-          <h3 id="question-header">Claude needs input</h3>
+          <span class="question-badge" id="question-badge" data-i18n="question.badge">Question</span>
+          <h3 id="question-header" data-i18n="question.header">Claude needs input</h3>
         </div>
 
         <div class="question-text" id="question-text"></div>
@@ -384,13 +413,13 @@
         </div>
 
         <div class="question-other">
-          <label for="question-other-input">Or type your own response:</label>
-          <textarea id="question-other-input" placeholder="Type here..." rows="2"></textarea>
+          <label for="question-other-input" data-i18n="question.otherLabel">Or type your own response:</label>
+          <textarea id="question-other-input" data-i18n-placeholder="question.otherPlaceholder" placeholder="Type here..." rows="2"></textarea>
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-cancel" id="question-skip">Skip</button>
-          <button type="button" class="modal-btn modal-btn-create" id="question-send-other">Send</button>
+          <button type="button" class="modal-btn modal-btn-cancel" id="question-skip" data-i18n="common.skip">Skip</button>
+          <button type="button" class="modal-btn modal-btn-create" id="question-send-other" data-i18n="common.send">Send</button>
         </div>
       </div>
     </div>
@@ -399,8 +428,8 @@
     <div id="permission-modal">
       <div class="modal-content permission-modal-content">
         <div class="modal-header">
-          <span class="permission-badge">Permission Required</span>
-          <h3>Allow <span class="permission-tool" id="permission-tool">Tool</span>?</h3>
+          <span class="permission-badge" data-i18n="permission.badge">Permission Required</span>
+          <h3 id="permission-header"></h3>
         </div>
 
         <div class="permission-context" id="permission-context">
@@ -417,7 +446,7 @@
     <div id="zone-info-modal">
       <div class="modal-content zone-info-modal-content">
         <div class="modal-header">
-          <h3>Zone Info</h3>
+          <h3 data-i18n="zoneInfo.title">Zone Info</h3>
           <button type="button" class="zone-info-close-btn" id="zone-info-close">&times;</button>
         </div>
         <div class="zone-info-body" id="zone-info-content">
@@ -430,26 +459,27 @@
     <div id="text-label-modal">
       <div class="modal-content text-label-modal-content">
         <div class="modal-header">
-          <h3 id="text-label-title">Add Label</h3>
+          <h3 id="text-label-title" data-i18n="textLabel.title">Add Label</h3>
         </div>
 
         <div class="text-label-body">
           <textarea
             id="text-label-input"
             class="text-label-textarea"
+            data-i18n-placeholder="textLabel.placeholder"
             placeholder="Enter your text here..."
             maxlength="500"
             rows="4"
           ></textarea>
           <div class="text-label-footer">
             <span class="text-label-char-count" id="text-label-char-count">0/500</span>
-            <span class="text-label-hint">Enter to save, Shift+Enter for newline</span>
+            <span class="text-label-hint" data-i18n="textLabel.hint">Enter to save, Shift+Enter for newline</span>
           </div>
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-cancel" id="text-label-cancel">Cancel</button>
-          <button type="button" class="modal-btn modal-btn-create" id="text-label-save">Save</button>
+          <button type="button" class="modal-btn modal-btn-cancel" id="text-label-cancel" data-i18n="common.cancel">Cancel</button>
+          <button type="button" class="modal-btn modal-btn-create" id="text-label-save" data-i18n="common.save">Save</button>
         </div>
       </div>
     </div>
@@ -458,49 +488,49 @@
     <div id="zone-timeout-modal">
       <div class="modal-content zone-timeout-content">
         <div class="modal-header">
-          <h3>Zone Not Responding</h3>
+          <h3 data-i18n="zoneTimeout.title">Zone Not Responding</h3>
         </div>
-        <p class="zone-timeout-text">
+        <p class="zone-timeout-text" data-i18n="zoneTimeout.description">
           The zone is taking longer than expected to start. Claude Code may be stuck or waiting for input.
         </p>
         <div class="about-section">
-          <div class="about-section-title">Troubleshooting</div>
+          <div class="about-section-title" data-i18n="about.troubleshooting">Troubleshooting</div>
           <div class="about-commands">
-            <div class="about-cmd"><code>tmux ls</code><span>List sessions</span></div>
-            <div class="about-cmd"><code>tmux attach -t <em>session</em></code><span>See what's happening</span></div>
+            <div class="about-cmd"><code>tmux ls</code><span data-i18n="about.listSessions">List sessions</span></div>
+            <div class="about-cmd"><code>tmux attach -t <em>session</em></code><span data-i18n="about.attachToSession">See what's happening</span></div>
           </div>
         </div>
-        <p class="zone-timeout-hint">Also ensure your Claude Code is up to date.</p>
+        <p class="zone-timeout-hint" data-i18n="zoneTimeout.updateHint">Also ensure your Claude Code is up to date.</p>
         <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-cancel" id="zone-timeout-close">Close</button>
+          <button type="button" class="modal-btn modal-btn-cancel" id="zone-timeout-close" data-i18n="common.close">Close</button>
         </div>
       </div>
     </div>
 
     <!-- Offline Banner (shown when user tries to interact while disconnected) -->
     <div id="offline-banner" class="offline-banner hidden">
-      <span>Not connected to local server</span>
+      <span data-i18n="offline.banner">Not connected to local server</span>
       <button id="offline-banner-dismiss">×</button>
     </div>
 
     <!-- Not Connected Overlay -->
     <div id="not-connected-overlay">
       <div class="not-connected-content">
-        <h2>Vibecraft!</h2>
-        <p class="not-connected-description">
+        <h2 data-i18n="offline.title">Vibecraft!</h2>
+        <p class="not-connected-description" data-i18n="offline.description">
           Vibecraft is a 3D app to watch and manage Claude Code instances.
         </p>
-        <p class="not-connected-privacy">
+        <p class="not-connected-privacy" data-i18n="offline.privacyNote">
           Vibecraft syncs with CC instances running on your local machine. Vibecraft is an interface - no files or code
           are sent to this server.
         </p>
         <div class="not-connected-setup">
-          <p class="not-connected-setup-label">Get started:</p>
+          <p class="not-connected-setup-label" data-i18n="offline.getStarted">Get started:</p>
           <div class="not-connected-code">npx vibecraft setup && npx vibecraft</div>
         </div>
         <div class="not-connected-actions">
-          <button class="not-connected-btn not-connected-btn-retry" id="retry-connection">↻ Reconnect</button>
-          <button class="not-connected-btn not-connected-btn-explore" id="explore-offline">👀 Explore</button>
+          <button class="not-connected-btn not-connected-btn-retry" id="retry-connection">↻ <span data-i18n="offline.reconnect">Reconnect</span></button>
+          <button class="not-connected-btn not-connected-btn-explore" id="explore-offline">👀 <span data-i18n="offline.explore">Explore</span></button>
         </div>
       </div>
     </div>

@@ -11,7 +11,6 @@ import type { WorkshopScene, Zone } from "../scene/WorkshopScene";
 import type { RealmRole } from "../../shared/types";
 import { REALM_ROLES } from "../../shared/types";
 import { Claude } from "../entities/ClaudeMon";
-import type { IMChannel } from "../ui/IMChannel";
 import { TaskDecomposition, DEMO_TASKS } from "./TaskDecomposition";
 
 // ============================================================================
@@ -27,7 +26,6 @@ export interface DemoAgent {
 
 interface DemoConfig {
   scene: WorkshopScene;
-  imChannel?: IMChannel | null;
 }
 
 // ============================================================================
@@ -52,7 +50,6 @@ const AGENT_POSITIONS: Array<{
 
 export class DemoOrchestrator {
   private scene: WorkshopScene;
-  private imChannel: IMChannel | null;
   private agents: Map<RealmRole, DemoAgent> = new Map();
   private meetingRoom: THREE.Group | null = null;
   private taskDecomposition: TaskDecomposition;
@@ -60,7 +57,6 @@ export class DemoOrchestrator {
 
   constructor(config: DemoConfig) {
     this.scene = config.scene;
-    this.imChannel = config.imChannel ?? null;
     this.taskDecomposition = new TaskDecomposition(config.scene.scene);
   }
 
@@ -145,12 +141,7 @@ export class DemoOrchestrator {
       // Phase 3: Agents work at various stations (8s)
       await this.phaseAgentsWorking();
 
-      // Phase 4: IM channel messages stream in
-      if (this.imChannel) {
-        await this.imChannel.runDemoSequence();
-      }
-
-      // Phase 5: Morning meeting - agents gather
+      // Phase 4: Morning meeting - agents gather
       await this.phaseMorningMeeting();
     } finally {
       this.isRunning = false;

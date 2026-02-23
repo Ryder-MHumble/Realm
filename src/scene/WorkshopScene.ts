@@ -225,13 +225,14 @@ export class WorkshopScene {
   // Hex hover highlight
   private hoverHighlight: THREE.Line | null = null;
 
-  // Zone group connection lines (Civ6-style links between grouped zones)
+  // Zone group connection lines (department boundaries)
   private groupLinks: Map<
     string,
     {
       line: THREE.Line;
       glowLine: THREE.Line;
       label?: THREE.Sprite;
+      floorTint?: THREE.Mesh;
       memberIds: string[]; // claude session IDs
     }
   > = new Map();
@@ -838,6 +839,25 @@ export class WorkshopScene {
       this.camera.position.copy(cameraPos);
     }
 
+    this.notifyCameraModeChange();
+  }
+
+  /**
+   * Focus camera on a centroid point (used for department group overview)
+   */
+  focusCentroid(centroid: { x: number; z: number }, memberCount: number): void {
+    this.cameraMode = "focused";
+    this.focusedZoneId = null;
+
+    const distance = 12 + memberCount * 4;
+    const target = new THREE.Vector3(centroid.x, 0, centroid.z);
+    const cameraPos = new THREE.Vector3(
+      centroid.x + distance * 0.5,
+      distance * 0.7,
+      centroid.z + distance * 0.6,
+    );
+
+    this.animateCameraTo(cameraPos, target);
     this.notifyCameraModeChange();
   }
 
@@ -3645,6 +3665,7 @@ export class WorkshopScene {
     sessionId: string,
     targetHex: { q: number; r: number },
     animate = true,
+    onComplete?: () => void,
   ): boolean {
     const zone = this.zones.get(sessionId);
     if (!zone) return false;
@@ -3683,6 +3704,10 @@ export class WorkshopScene {
           if (zone.sideMesh) {
             zone.sideMesh.position.set(x, 0, z);
           }
+          // Update scene-level positioned systems
+          this.zoneNotifications.updateZonePosition(sessionId, zone.position);
+          this.stationPanels.updateZonePosition(sessionId, zone.position);
+          onComplete?.();
         }
       };
       requestAnimationFrame(animateMove);
@@ -3696,6 +3721,10 @@ export class WorkshopScene {
         zone.sideMesh.position.set(x, 0, z);
       }
       this.updateStationPositions(sessionId);
+      // Update scene-level positioned systems
+      this.zoneNotifications.updateZonePosition(sessionId, zone.position);
+      this.stationPanels.updateZonePosition(sessionId, zone.position);
+      onComplete?.();
     }
 
     return true;
@@ -3833,13 +3862,12 @@ export class WorkshopScene {
   /**
    * Update group links from server data.
    * Takes groups with managed session IDs and resolves to claude session IDs.
-   * @param groups - Array of ZoneGroup from server
-   * @param managedSessions - Array of ManagedSession for ID resolution
    */
   updateGroupLinks(
     groups: Array<{
       id: string;
       name?: string;
+      color?: string;
       memberSessionIds: string[];
     }>,
     managedSessions: Array<{
@@ -3847,7 +3875,6 @@ export class WorkshopScene {
       claudeSessionId?: string;
     }>,
   ): void {
-    // Build managed->claude lookup
     const managedToClaudeMap = new Map<string, string>();
     for (const ms of managedSessions) {
       if (ms.claudeSessionId) {
@@ -3855,33 +3882,25 @@ export class WorkshopScene {
       }
     }
 
-    // Track which group IDs are still active
     const activeGroupIds = new Set<string>();
 
     for (const group of groups) {
-      // Resolve managed IDs to claude session IDs (which match zone IDs)
       const claudeIds = group.memberSessionIds
         .map((mid) => managedToClaudeMap.get(mid))
         .filter((id): id is string => !!id && this.zones.has(id));
 
-      if (claudeIds.length < 2) {
-        // Not enough visible zones to render a link
-        continue;
-      }
+      if (claudeIds.length < 2) continue;
 
       activeGroupIds.add(group.id);
       const existing = this.groupLinks.get(group.id);
 
       if (existing) {
-        // Update existing link positions
-        this.updateGroupLinkPositions(group.id, claudeIds);
+        this.updateGroupLinkPositions(group.id, claudeIds, group.name);
       } else {
-        // Create new link
-        this.createGroupLink(group.id, claudeIds, group.name);
+        this.createGroupLink(group.id, claudeIds, group.name, group.color);
       }
     }
 
-    // Remove stale links
     for (const [groupId] of this.groupLinks) {
       if (!activeGroupIds.has(groupId)) {
         this.removeGroupLink(groupId);
@@ -3890,14 +3909,153 @@ export class WorkshopScene {
   }
 
   /**
-   * Create glowing connection lines between grouped zones
+   * Compute 2D convex hull of positions (using XZ plane).
+   * Returns points in counter-clockwise order.
+   */
+  private computeConvexHull2D(positions: THREE.Vector3[]): THREE.Vector3[] {
+    if (positions.length <= 1) return [...positions];
+
+    // For 2 points, create a capsule shape
+    if (positions.length === 2) {
+      return this.createCapsuleHull(positions[0], positions[1]);
+    }
+
+    // Sort by x, then by z
+    const sorted = [...positions].sort((a, b) => a.x - b.x || a.z - b.z);
+
+    // Andrew's monotone chain algorithm
+    const cross = (o: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3) =>
+      (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x);
+
+    const lower: THREE.Vector3[] = [];
+    for (const p of sorted) {
+      while (
+        lower.length >= 2 &&
+        cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0
+      ) {
+        lower.pop();
+      }
+      lower.push(p);
+    }
+
+    const upper: THREE.Vector3[] = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const p = sorted[i];
+      while (
+        upper.length >= 2 &&
+        cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0
+      ) {
+        upper.pop();
+      }
+      upper.push(p);
+    }
+
+    // Remove last point of each half (duplicate of the other half's first)
+    lower.pop();
+    upper.pop();
+    return lower.concat(upper);
+  }
+
+  /**
+   * Create a capsule-shaped hull for 2 points (elongated pill shape)
+   */
+  private createCapsuleHull(
+    a: THREE.Vector3,
+    b: THREE.Vector3,
+  ): THREE.Vector3[] {
+    const margin = this.hexGrid.hexRadius * 0.6;
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len = Math.sqrt(dx * dx + dz * dz);
+    if (len === 0) return [a];
+
+    // Perpendicular direction
+    const px = -dz / len;
+    const pz = dx / len;
+
+    const y = (a.y + b.y) / 2;
+    const segments = 4;
+    const result: THREE.Vector3[] = [];
+
+    // Semi-circle around point A
+    for (let i = 0; i <= segments; i++) {
+      const angle = Math.atan2(pz, px) + Math.PI / 2 + (Math.PI * i) / segments;
+      result.push(
+        new THREE.Vector3(
+          a.x + Math.cos(angle) * margin,
+          y,
+          a.z + Math.sin(angle) * margin,
+        ),
+      );
+    }
+
+    // Semi-circle around point B
+    for (let i = 0; i <= segments; i++) {
+      const angle = Math.atan2(pz, px) - Math.PI / 2 + (Math.PI * i) / segments;
+      result.push(
+        new THREE.Vector3(
+          b.x + Math.cos(angle) * margin,
+          y,
+          b.z + Math.sin(angle) * margin,
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Expand hull outward by a margin
+   */
+  private expandHull(hull: THREE.Vector3[], margin: number): THREE.Vector3[] {
+    if (hull.length < 3) return hull;
+
+    // Calculate centroid
+    const cx = hull.reduce((s, p) => s + p.x, 0) / hull.length;
+    const cz = hull.reduce((s, p) => s + p.z, 0) / hull.length;
+    const y = hull[0].y;
+
+    return hull.map((p) => {
+      const dx = p.x - cx;
+      const dz = p.z - cz;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist === 0) return p.clone();
+
+      return new THREE.Vector3(
+        p.x + (dx / dist) * margin,
+        y,
+        p.z + (dz / dist) * margin,
+      );
+    });
+  }
+
+  /**
+   * Build line geometry from a closed hull polygon
+   */
+  private buildHullLineGeometry(hull: THREE.Vector3[]): THREE.BufferGeometry {
+    const linePoints: number[] = [];
+    for (let i = 0; i < hull.length; i++) {
+      const curr = hull[i];
+      const next = hull[(i + 1) % hull.length];
+      linePoints.push(curr.x, curr.y, curr.z, next.x, next.y, next.z);
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(linePoints, 3),
+    );
+    return geom;
+  }
+
+  /**
+   * Create department boundary around grouped zones (convex hull + floor tint)
    */
   private createGroupLink(
     groupId: string,
     claudeSessionIds: string[],
     name?: string,
+    color?: string,
   ): void {
-    // Get zone positions
     const positions: THREE.Vector3[] = [];
     for (const cid of claudeSessionIds) {
       const zone = this.zones.get(cid);
@@ -3905,7 +4063,7 @@ export class WorkshopScene {
         positions.push(
           new THREE.Vector3(
             zone.group.position.x,
-            zone.elevation + 0.3,
+            zone.elevation + 0.15,
             zone.group.position.z,
           ),
         );
@@ -3914,124 +4072,99 @@ export class WorkshopScene {
 
     if (positions.length < 2) return;
 
-    // Build line geometry connecting all pairs
-    const linePoints: number[] = [];
-    for (let i = 0; i < positions.length; i++) {
-      for (let j = i + 1; j < positions.length; j++) {
-        linePoints.push(
-          positions[i].x,
-          positions[i].y,
-          positions[i].z,
-          positions[j].x,
-          positions[j].y,
-          positions[j].z,
-        );
-      }
-    }
+    const groupColor = color ? parseInt(color.replace("#", ""), 16) : 0x60a5fa;
 
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(linePoints, 3),
-    );
+    // Compute convex hull and expand outward
+    const hull = this.computeConvexHull2D(positions);
+    const expandedHull = this.expandHull(hull, this.hexGrid.hexRadius * 0.6);
 
-    // Solid thin line
+    // Create closed boundary line
+    const geom = this.buildHullLineGeometry(expandedHull);
+
     const lineMat = new THREE.LineBasicMaterial({
-      color: 0x60a5fa,
+      color: groupColor,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.5,
     });
     const line = new THREE.LineSegments(geom, lineMat);
     this.scene.add(line);
 
-    // Wider glow line (pulsing)
+    // Glow line (pulsing)
     const glowGeom = geom.clone();
     const glowMat = new THREE.LineBasicMaterial({
-      color: 0x60a5fa,
+      color: groupColor,
       transparent: true,
       opacity: 0.15,
-      linewidth: 1,
     });
     const glowLine = new THREE.LineSegments(glowGeom, glowMat);
     this.scene.add(glowLine);
 
-    // Optional group label at midpoint
+    // Group name label at centroid
     let label: THREE.Sprite | undefined;
-    if (name && positions.length >= 2) {
-      const mid = new THREE.Vector3()
-        .addVectors(positions[0], positions[1])
-        .multiplyScalar(0.5);
-      mid.y += 2;
-      label = this.createGroupLabelSprite(name);
-      label.position.copy(mid);
+    if (name) {
+      const centroid = new THREE.Vector3();
+      positions.forEach((p) => centroid.add(p));
+      centroid.divideScalar(positions.length);
+      centroid.y = Math.max(...positions.map((p) => p.y)) + 3;
+      label = this.createGroupLabelSprite(name, groupColor);
+      label.position.copy(centroid);
       this.scene.add(label);
+    }
+
+    // Subtle floor tint
+    let floorTint: THREE.Mesh | undefined;
+    if (expandedHull.length >= 3) {
+      const shape = new THREE.Shape();
+      shape.moveTo(expandedHull[0].x, expandedHull[0].z);
+      for (let i = 1; i < expandedHull.length; i++) {
+        shape.lineTo(expandedHull[i].x, expandedHull[i].z);
+      }
+      shape.closePath();
+      const shapeGeom = new THREE.ShapeGeometry(shape);
+      shapeGeom.rotateX(-Math.PI / 2);
+      shapeGeom.translate(0, 0.02, 0);
+      const floorMat = new THREE.MeshBasicMaterial({
+        color: groupColor,
+        transparent: true,
+        opacity: 0.04,
+        side: THREE.DoubleSide,
+      });
+      floorTint = new THREE.Mesh(shapeGeom, floorMat);
+      this.scene.add(floorTint);
     }
 
     this.groupLinks.set(groupId, {
       line: line as THREE.Line,
       glowLine: glowLine as THREE.Line,
       label,
+      floorTint,
       memberIds: claudeSessionIds,
     });
   }
 
   /**
-   * Update positions of an existing group link
+   * Update positions of an existing group link (rebuild hull)
    */
   private updateGroupLinkPositions(
     groupId: string,
     claudeSessionIds: string[],
+    name?: string,
   ): void {
-    const link = this.groupLinks.get(groupId);
-    if (!link) return;
+    // Simplest approach: remove and recreate
+    const existing = this.groupLinks.get(groupId);
+    const existingColor = existing?.line
+      ? (existing.line.material as THREE.LineBasicMaterial).color.getHex()
+      : undefined;
 
-    const positions: THREE.Vector3[] = [];
-    for (const cid of claudeSessionIds) {
-      const zone = this.zones.get(cid);
-      if (zone) {
-        positions.push(
-          new THREE.Vector3(
-            zone.group.position.x,
-            zone.elevation + 0.3,
-            zone.group.position.z,
-          ),
-        );
-      }
-    }
-
-    if (positions.length < 2) return;
-
-    // Rebuild line geometry
-    const linePoints: number[] = [];
-    for (let i = 0; i < positions.length; i++) {
-      for (let j = i + 1; j < positions.length; j++) {
-        linePoints.push(
-          positions[i].x,
-          positions[i].y,
-          positions[i].z,
-          positions[j].x,
-          positions[j].y,
-          positions[j].z,
-        );
-      }
-    }
-
-    const posAttr = new THREE.Float32BufferAttribute(linePoints, 3);
-    link.line.geometry.setAttribute("position", posAttr);
-    link.line.geometry.attributes.position.needsUpdate = true;
-    link.glowLine.geometry.setAttribute("position", posAttr.clone());
-    link.glowLine.geometry.attributes.position.needsUpdate = true;
-
-    // Update label position
-    if (link.label && positions.length >= 2) {
-      const mid = new THREE.Vector3()
-        .addVectors(positions[0], positions[1])
-        .multiplyScalar(0.5);
-      mid.y += 2;
-      link.label.position.copy(mid);
-    }
-
-    link.memberIds = claudeSessionIds;
+    this.removeGroupLink(groupId);
+    this.createGroupLink(
+      groupId,
+      claudeSessionIds,
+      name,
+      existingColor
+        ? `#${existingColor.toString(16).padStart(6, "0")}`
+        : undefined,
+    );
   }
 
   /**
@@ -4055,6 +4188,12 @@ export class WorkshopScene {
       link.label.material.dispose();
     }
 
+    if (link.floorTint) {
+      this.scene.remove(link.floorTint);
+      link.floorTint.geometry.dispose();
+      (link.floorTint.material as THREE.Material).dispose();
+    }
+
     this.groupLinks.delete(groupId);
   }
 
@@ -4068,22 +4207,28 @@ export class WorkshopScene {
   }
 
   /**
-   * Create a small text sprite for group labels
+   * Create a text sprite for group labels
    */
-  private createGroupLabelSprite(text: string): THREE.Sprite {
+  private createGroupLabelSprite(text: string, color = 0x60a5fa): THREE.Sprite {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d")!;
-    canvas.width = 256;
+    canvas.width = 512;
     canvas.height = 64;
 
     ctx.fillStyle = "rgba(0, 0, 0, 0)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.font = "bold 24px monospace";
+    // Convert hex color to CSS
+    const r = (color >> 16) & 0xff;
+    const g = (color >> 8) & 0xff;
+    const b = color & 0xff;
+    const cssColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
+
+    ctx.font = "bold 28px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "rgba(96, 165, 250, 0.7)";
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    ctx.fillStyle = cssColor;
+    ctx.fillText(text.toUpperCase(), canvas.width / 2, canvas.height / 2);
 
     const texture = new THREE.CanvasTexture(canvas);
     const mat = new THREE.SpriteMaterial({
@@ -4092,7 +4237,7 @@ export class WorkshopScene {
       depthTest: false,
     });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(6, 1.5, 1);
+    sprite.scale.set(8, 1, 1);
     return sprite;
   }
 

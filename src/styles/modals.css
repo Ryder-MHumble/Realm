@@ -194,6 +194,11 @@
   box-shadow: 0 0 20px rgba(74, 222, 128, 0.15);
 }
 
+.modal-btn:active {
+  transform: scale(0.97);
+  transition-duration: 0.05s;
+}
+
 .modal-checkboxes {
   display: flex;
   flex-direction: column;
@@ -399,6 +404,37 @@
 .settings-action-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Language switcher */
+.settings-language-row {
+  display: flex;
+  gap: 8px;
+}
+
+.lang-btn {
+  flex: 1;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lang-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.lang-btn.active {
+  background: rgba(167, 139, 250, 0.15);
+  border-color: rgba(167, 139, 250, 0.4);
+  color: #c4b5fd;
 }
 
 /* Settings port input */
@@ -821,6 +857,11 @@
   border-color: rgba(167, 139, 250, 0.4);
 }
 
+.question-option:active {
+  transform: scale(0.98);
+  transition-duration: 0.05s;
+}
+
 .question-option-label {
   color: #fff;
   font-size: 14px;
@@ -1042,6 +1083,11 @@
 .permission-btn[data-option="5"] .permission-btn-num,
 .permission-btn[data-option="6"] .permission-btn-num {
   background: rgba(156, 163, 175, 0.3);
+}
+
+.permission-btn:active {
+  transform: scale(0.98);
+  transition-duration: 0.05s;
 }
 
 /* Not connected overlay */

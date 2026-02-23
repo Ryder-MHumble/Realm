@@ -54,7 +54,6 @@ import {
   type QuestionData,
 } from "./ui/QuestionModal";
 import { toast } from "./ui/Toast";
-import { IMChannel } from "./ui/IMChannel";
 import { DemoOrchestrator } from "./demo/DemoOrchestrator";
 import {
   setupZoneInfoModal,
@@ -70,12 +69,14 @@ import {
   showPermissionModal,
   hidePermissionModal,
 } from "./ui/PermissionModal";
-import { setupSlashCommands, isSlashCommand } from "./ui/SlashCommands";
+import { setupSlashCommands } from "./ui/SlashCommands";
 import { setupDirectoryAutocomplete } from "./ui/DirectoryAutocomplete";
 import { checkForUpdates } from "./ui/VersionChecker";
 import { drawMode } from "./ui/DrawMode";
 import { setupTextLabelModal, showTextLabelModal } from "./ui/TextLabelModal";
 import { createSessionAPI, type SessionAPI } from "./api";
+import { initI18n, t, setLocale, getLocale } from "./i18n";
+import type { Locale } from "./i18n";
 
 // ============================================================================
 // Configuration
@@ -139,7 +140,6 @@ interface AppState {
   attentionSystem: AttentionSystem | null; // Manages attention queue and notifications
   timelineManager: TimelineManager | null; // Manages icon timeline
   feedManager: FeedManager | null; // Manages activity feed
-  imChannel: IMChannel | null; // IM channel for team chat
   soundEnabled: boolean; // Whether to play sounds
   hasAutoOverviewed: boolean; // Whether we've done initial auto-overview for 2+ sessions
   userChangedCamera: boolean; // Whether user has manually changed camera (to avoid overriding)
@@ -163,7 +163,6 @@ const state: AppState = {
   attentionSystem: null, // Initialized in init()
   timelineManager: null, // Initialized in init()
   feedManager: null, // Initialized in init()
-  imChannel: null, // Initialized in init()
   soundEnabled: true,
   hasAutoOverviewed: false,
   userChangedCamera: false,
@@ -196,169 +195,132 @@ const ZONE_CREATION_TIMEOUT = 10000;
 // ============================================================================
 
 /**
- * Render the managed sessions list
+ * Render a single session pill element (compact horizontal pill for command bar)
+ */
+function renderSessionPill(
+  session: ManagedSession,
+  globalIndex: number,
+  isGrouped: boolean,
+): HTMLElement {
+  const el = document.createElement("div");
+  el.className = `session-pill${isGrouped ? " grouped" : ""}`;
+  if (session.id === state.selectedManagedSession) {
+    el.classList.add("active");
+  }
+
+  const needsAttention =
+    state.attentionSystem?.needsAttention(session.id) ?? false;
+  if (needsAttention) {
+    el.classList.add("needs-attention");
+  }
+
+  const statusClass = session.status;
+  const hotkey = getSessionKeybind(globalIndex) || "";
+
+  // Build tooltip with full details
+  const lastActive = session.lastActivity
+    ? formatTimeAgo(session.lastActivity)
+    : "";
+  const lastPrompt = session.claudeSessionId
+    ? state.lastPrompts.get(session.claudeSessionId)
+    : null;
+  const tooltipParts = [
+    `Name: ${session.name}`,
+    `Status: ${session.status}`,
+    session.cwd ? `Dir: ${session.cwd}` : "",
+    session.currentTool ? `Tool: ${session.currentTool}` : "",
+    session.lastActivity
+      ? `Last active: ${new Date(session.lastActivity).toLocaleString()}`
+      : "",
+    lastPrompt ? `Last prompt: ${lastPrompt}` : "",
+  ].filter(Boolean);
+  el.title = tooltipParts.join("\n");
+
+  // Group color as bottom border
+  if (isGrouped && session.groupId) {
+    const group = state.zoneGroups.find((g) => g.id === session.groupId);
+    if (group?.color) {
+      el.style.borderBottomColor = group.color;
+    }
+  }
+
+  el.innerHTML = `
+    <span class="pill-status ${statusClass}"></span>
+    <span class="pill-name">${escapeHtml(session.name)}</span>
+    ${hotkey ? `<span class="pill-hotkey">${hotkey}</span>` : ""}
+  `;
+
+  // Left click selects
+  el.addEventListener("click", () => {
+    selectManagedSession(session.id);
+  });
+
+  // Right-click for context menu (rename/delete/restart)
+  el.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    const items: Array<{
+      key: string;
+      label: string;
+      action: string;
+      danger?: boolean;
+    }> = [];
+
+    if (session.status === "offline") {
+      items.push({ key: "R", label: "Restart", action: "pill_restart" });
+    }
+    items.push({ key: "N", label: "Rename", action: "pill_rename" });
+    items.push({
+      key: "X",
+      label: "Delete",
+      action: "pill_delete",
+      danger: true,
+    });
+
+    if (contextMenu) {
+      contextMenu.show(e.clientX, e.clientY, items, {
+        managedSessionId: session.id,
+        managedSessionName: session.name,
+      });
+    }
+  });
+
+  return el;
+}
+
+/**
+ * Render the managed sessions as horizontal pills in the command bar dock
  */
 function renderManagedSessions(): void {
-  const container = document.getElementById("managed-sessions");
+  const container = document.getElementById("session-pills");
   if (!container) return;
 
   container.innerHTML = "";
 
-  // Update "All Sessions" count
-  const allCount = document.getElementById("all-sessions-count");
-  if (allCount) {
-    const count = state.managedSessions.length;
-    const working = state.managedSessions.filter(
-      (s) => s.status === "working",
-    ).length;
-    if (count === 0) {
-      allCount.textContent = 'Click "+ New" to start';
-    } else if (working > 0) {
-      allCount.textContent = `${count} session${count > 1 ? "s" : ""}, ${working} working`;
-      allCount.className = "session-detail working";
-    } else {
-      allCount.textContent = `${count} session${count > 1 ? "s" : ""}`;
-      allCount.className = "session-detail";
-    }
+  // Update "All" pill active state
+  const allPill = document.querySelector(".session-pill-all");
+  if (allPill) {
+    allPill.classList.toggle("active", state.selectedManagedSession === null);
   }
 
-  // Update "All Sessions" active state
-  const allItem = document.querySelector(".session-item.all-sessions");
-  if (allItem) {
-    allItem.classList.toggle("active", state.selectedManagedSession === null);
+  // Empty state hint
+  if (state.managedSessions.length === 0) {
+    const hint = document.createElement("span");
+    hint.className = "sessions-empty-hint";
+    hint.textContent = t("commandBar.noZones");
+    container.appendChild(hint);
+    return;
   }
 
-  state.managedSessions.forEach((session, index) => {
-    const el = document.createElement("div");
-    el.className = "session-item";
-    if (session.id === state.selectedManagedSession) {
-      el.classList.add("active");
-    }
+  // Build global index map for hotkey assignment
+  const globalIndexMap = new Map<string, number>();
+  state.managedSessions.forEach((s, i) => globalIndexMap.set(s.id, i));
 
-    // Check if session needs attention
-    const needsAttention =
-      state.attentionSystem?.needsAttention(session.id) ?? false;
-    if (needsAttention) {
-      el.classList.add("needs-attention");
-    }
-
-    const statusClass = session.status;
-    const hotkey = index < 6 ? getSessionKeybind(index) : ""; // 1-6 shown in UI
-
-    // Time since last activity (needed for detail line)
-    const lastActive = session.lastActivity
-      ? formatTimeAgo(session.lastActivity)
-      : "";
-
-    // Build detail line with status and project
-    const projectName = session.cwd ? session.cwd.split("/").pop() : "";
-    let detail = "";
-    if (needsAttention) {
-      detail = "⚡ Needs attention";
-    } else if (session.status === "waiting") {
-      detail = `⏳ Waiting for permission: ${session.currentTool || "Unknown"}`;
-    } else if (session.currentTool) {
-      detail = `Using ${session.currentTool}`;
-    } else if (session.status === "offline") {
-      detail = lastActive
-        ? `Offline · was ${lastActive}`
-        : "Offline - click 🔄 to restart";
-    } else {
-      detail = projectName ? `📁 ${projectName}` : "Ready";
-    }
-    const detailClass =
-      session.status === "working"
-        ? "session-detail working"
-        : session.status === "waiting"
-          ? "session-detail attention"
-          : needsAttention
-            ? "session-detail attention"
-            : "session-detail";
-
-    // Get last prompt for this session (via claudeSessionId)
-    const lastPrompt = session.claudeSessionId
-      ? state.lastPrompts.get(session.claudeSessionId)
-      : null;
-    const truncatedPrompt = lastPrompt
-      ? lastPrompt.length > 35
-        ? lastPrompt.slice(0, 32) + "..."
-        : lastPrompt
-      : null;
-
-    // Build detailed tooltip
-    const tooltipParts = [
-      `Name: ${session.name}`,
-      `Status: ${session.status}`,
-      `tmux: ${session.tmuxSession}`,
-      session.claudeSessionId
-        ? `Claude ID: ${session.claudeSessionId.slice(0, 12)}...`
-        : "Not linked yet",
-      session.cwd ? `Dir: ${session.cwd}` : "",
-      session.lastActivity
-        ? `Last active: ${new Date(session.lastActivity).toLocaleString()}`
-        : "",
-      lastPrompt ? `Last prompt: ${lastPrompt}` : "",
-    ].filter(Boolean);
-    el.title = tooltipParts.join("\n");
-
-    // Mode badge (only show if not default auto-edit)
-    const modeBadge =
-      session.mode && session.mode !== "auto-edit"
-        ? `<span class="session-mode-badge mode-${session.mode}">${session.mode === "plan" ? "Plan" : "Ask"}</span>`
-        : "";
-
-    // Group badge
-    const groupBadge = session.groupId
-      ? '<span class="session-mode-badge mode-group">Grp</span>'
-      : "";
-
-    el.innerHTML = `
-      ${hotkey ? `<div class="session-hotkey">${hotkey}</div>` : ""}
-      <div class="session-status ${statusClass}"></div>
-      <div class="session-info">
-        <div class="session-name">${escapeHtml(session.name)} ${modeBadge}${groupBadge}</div>
-        <div class="${detailClass}">${detail}${!needsAttention && session.status !== "offline" && lastActive ? ` · ${lastActive}` : ""}</div>
-        ${truncatedPrompt ? `<div class="session-prompt">💬 ${escapeHtml(truncatedPrompt)}</div>` : ""}
-      </div>
-      <div class="session-actions">
-        ${session.status === "offline" ? `<button class="restart-btn" title="Restart session">🔄</button>` : ""}
-        <button class="rename-btn" title="Rename">✏️</button>
-        <button class="delete-btn" title="Delete">🗑️</button>
-      </div>
-    `;
-
-    // Click to select and filter
-    el.addEventListener("click", (e) => {
-      // Ignore if clicking action buttons
-      if ((e.target as HTMLElement).closest(".session-actions")) return;
-      selectManagedSession(session.id);
-    });
-
-    // Rename button
-    el.querySelector(".rename-btn")?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const newName = prompt("Enter new name:", session.name);
-      if (newName && newName !== session.name) {
-        renameManagedSession(session.id, newName);
-      }
-    });
-
-    // Delete button
-    el.querySelector(".delete-btn")?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (confirm(`Delete session "${session.name}"?`)) {
-        deleteManagedSession(session.id);
-      }
-    });
-
-    // Restart button (only shown for offline sessions)
-    el.querySelector(".restart-btn")?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      restartManagedSession(session.id, session.name);
-    });
-
-    container.appendChild(el);
-  });
+  // Render all sessions as pills (flat list - groups shown via colored border)
+  for (const session of state.managedSessions) {
+    const idx = globalIndexMap.get(session.id) ?? -1;
+    const isGrouped = !!session.groupId;
+    container.appendChild(renderSessionPill(session, idx, isGrouped));
+  }
 }
 
 /**
@@ -405,6 +367,7 @@ function selectManagedSession(sessionId: string | null): void {
         '<span style="color: rgba(255,255,255,0.4)">all sessions</span>';
       targetEl.title = "Select a session to send prompts";
     }
+    updateModeSelector(null);
   }
   // Note: when sessionId is set, focusSession() handles the prompt target update
 }
@@ -789,8 +752,8 @@ function setupManagedSessions(): void {
     closeModal();
   };
 
-  // New session button opens modal (no hint position from button click)
-  const newBtn = document.getElementById("new-session-btn");
+  // New session pill opens modal (no hint position from button click)
+  const newBtn = document.getElementById("new-session-pill");
   if (newBtn) {
     newBtn.addEventListener("click", () => openNewSessionModal());
   }
@@ -817,6 +780,7 @@ function setupManagedSessions(): void {
   if (modal) {
     modal.addEventListener("click", (e) => {
       if (e.target === modal) {
+        soundManager.play("modal_cancel");
         closeModal();
       }
     });
@@ -831,11 +795,34 @@ function setupManagedSessions(): void {
   nameInput?.addEventListener("keydown", handleEnter);
   cwdInput?.addEventListener("keydown", handleEnter);
 
-  // "All Sessions" click handler
-  const allItem = document.querySelector(".session-item.all-sessions");
-  if (allItem) {
-    allItem.addEventListener("click", () => {
+  // "All" pill click handler
+  const allPill = document.querySelector(".session-pill-all");
+  if (allPill) {
+    allPill.addEventListener("click", () => {
       selectManagedSession(null);
+    });
+  }
+
+  // Feed drawer toggle & close
+  const feedDrawer = document.getElementById("feed-drawer");
+  const feedToggleBtn = document.getElementById("feed-toggle-btn");
+  const drawerClose = document.getElementById("feed-drawer-close");
+
+  const syncFeedToggle = () => {
+    const isOpen = feedDrawer?.classList.contains("open");
+    feedToggleBtn?.classList.toggle("active", !!isOpen);
+  };
+
+  if (feedToggleBtn && feedDrawer) {
+    feedToggleBtn.addEventListener("click", () => {
+      feedDrawer.classList.toggle("open");
+      syncFeedToggle();
+    });
+  }
+  if (drawerClose && feedDrawer) {
+    drawerClose.addEventListener("click", () => {
+      feedDrawer.classList.remove("open");
+      syncFeedToggle();
     });
   }
 
@@ -864,8 +851,51 @@ function handleContextMenuAction(
     showModeMenu(context.zoneId, context.screenPosition);
   } else if (action === "info" && context.zoneId) {
     showZoneInfo(context.zoneId);
-  } else if (action === "ungroup" && context.zoneId) {
-    ungroupZone(context.zoneId);
+  } else if (action === "rename_group" && context.zoneId) {
+    const managed = state.managedSessions.find(
+      (s) => s.claudeSessionId === context.zoneId,
+    );
+    if (managed?.groupId) renameGroup(managed.groupId);
+  } else if (action === "remove_from_group" && context.zoneId) {
+    const managed = state.managedSessions.find(
+      (s) => s.claudeSessionId === context.zoneId,
+    );
+    if (managed?.groupId) removeFromGroup(managed.groupId, context.zoneId);
+  } else if (action === "add_to_group_menu" && context.zoneId) {
+    // Show secondary context menu listing available groups
+    const groupItems = state.zoneGroups.map((g, i) => ({
+      key: String(i + 1),
+      label: g.name || `Department ${i + 1}`,
+      action: `join_group_${g.id}`,
+    }));
+    if (groupItems.length > 0 && context.screenPosition) {
+      contextMenu?.show(
+        context.screenPosition.x,
+        context.screenPosition.y,
+        groupItems,
+        { zoneId: context.zoneId },
+      );
+    }
+  } else if (action.startsWith("join_group_") && context.zoneId) {
+    const groupId = action.replace("join_group_", "");
+    addToGroup(groupId, context.zoneId);
+  } else if (action === "pill_rename" && context.managedSessionId) {
+    const sid = context.managedSessionId as string;
+    const sname = (context.managedSessionName as string) || "";
+    const newName = prompt(t("contextMenu.enterNewName"), sname);
+    if (newName && newName !== sname) {
+      renameManagedSession(sid, newName);
+    }
+  } else if (action === "pill_delete" && context.managedSessionId) {
+    const sid = context.managedSessionId as string;
+    const sname = (context.managedSessionName as string) || "";
+    if (confirm(t("contextMenu.confirmDelete", { name: sname }))) {
+      deleteManagedSession(sid);
+    }
+  } else if (action === "pill_restart" && context.managedSessionId) {
+    const sid = context.managedSessionId as string;
+    const sname = (context.managedSessionName as string) || "";
+    restartManagedSession(sid, sname);
   } else if (action === "delete" && context.zoneId) {
     deleteZoneBySessionId(context.zoneId);
   } else if (action === "create_text_tile" && context.hexPosition) {
@@ -956,15 +986,125 @@ async function switchSessionMode(
   }
 }
 
+// ============================================================================
+// Mode Selector (inline dropdown near prompt input)
+// ============================================================================
+
+const MODE_CONFIG: Record<
+  ClaudeMode,
+  { icon: string; label: string; cssClass: string }
+> = {
+  "auto-edit": { icon: "⚡", label: "Auto-edit", cssClass: "mode-auto-edit" },
+  plan: { icon: "📋", label: "Plan", cssClass: "mode-plan" },
+  "ask-before-edit": {
+    icon: "🔒",
+    label: "Ask before edit",
+    cssClass: "mode-ask-before-edit",
+  },
+};
+
+function setupModeSelector(): void {
+  const btn = document.getElementById("mode-selector-btn");
+  const dropdown = document.getElementById("mode-selector-dropdown");
+  const options = document.querySelectorAll(".mode-option");
+
+  if (!btn || !dropdown) return;
+
+  // Toggle dropdown
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = !dropdown.classList.contains("hidden");
+    if (isOpen) {
+      closeModeDropdown();
+    } else {
+      dropdown.classList.remove("hidden");
+      btn.classList.add("open");
+    }
+  });
+
+  // Close on outside click
+  document.addEventListener("click", () => {
+    closeModeDropdown();
+  });
+
+  dropdown.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
+  // Handle option clicks
+  options.forEach((opt) => {
+    opt.addEventListener("click", () => {
+      const mode = (opt as HTMLElement).dataset.mode as ClaudeMode;
+      if (!mode) return;
+
+      // Find the focused/selected session
+      const sessionId = state.focusedSessionId;
+      if (sessionId) {
+        switchSessionMode(sessionId, mode);
+      }
+      closeModeDropdown();
+    });
+  });
+
+  function closeModeDropdown(): void {
+    dropdown!.classList.add("hidden");
+    btn!.classList.remove("open");
+  }
+}
+
+/**
+ * Update the mode selector button to reflect the current session's mode
+ */
+function updateModeSelector(sessionId: string | null): void {
+  const container = document.getElementById("mode-selector");
+  const btn = document.getElementById("mode-selector-btn");
+  const iconEl = document.getElementById("mode-selector-icon");
+  const labelEl = document.getElementById("mode-selector-label");
+  const options = document.querySelectorAll(".mode-option");
+
+  if (!container || !btn || !iconEl || !labelEl) return;
+
+  // Find managed session
+  const managed = sessionId
+    ? state.managedSessions.find((s) => s.claudeSessionId === sessionId)
+    : null;
+
+  if (!managed) {
+    // No session selected or not a managed session
+    container.classList.add("disabled");
+    iconEl.textContent = "";
+    labelEl.textContent = t("commandBar.noSession");
+    btn.className = ""; // Reset mode classes
+    btn.id = "mode-selector-btn";
+    options.forEach((o) => o.classList.remove("active"));
+    return;
+  }
+
+  container.classList.remove("disabled");
+  const currentMode = managed.mode || "auto-edit";
+  const config = MODE_CONFIG[currentMode];
+
+  iconEl.textContent = config.icon;
+  labelEl.textContent = config.label;
+  btn.className = config.cssClass;
+  btn.id = "mode-selector-btn";
+
+  // Update active state on options
+  options.forEach((o) => {
+    const optMode = (o as HTMLElement).dataset.mode;
+    o.classList.toggle("active", optMode === currentMode);
+  });
+}
+
 /**
  * Group two zones together (or add to existing group).
  * Takes claude session IDs and resolves to managed IDs for API call.
+ * Smart merge: if either zone is already in a group, add the other to it.
  */
 async function groupZonesWith(
   draggedClaudeId: string,
   targetClaudeId: string,
 ): Promise<void> {
-  // Resolve to managed session IDs
   const draggedManaged = state.managedSessions.find(
     (s) => s.claudeSessionId === draggedClaudeId,
   );
@@ -977,24 +1117,121 @@ async function groupZonesWith(
     return;
   }
 
-  // If target is already in a group, add the dragged zone to that group
-  // If dragged is already in a group, merge or just add target
-  // For v1 simplicity: always create a fresh group with both members
-  const memberIds = [draggedManaged.id, targetManaged.id];
+  // Case 1: Target is already in a group → add dragged to that group
+  if (targetManaged.groupId && !draggedManaged.groupId) {
+    const result = await sessionAPI.updateGroup(targetManaged.groupId, {
+      addMembers: [draggedManaged.id],
+    });
+    if (result.ok) {
+      const group = state.zoneGroups.find(
+        (g) => g.id === targetManaged.groupId,
+      );
+      toast.info(
+        `Added "${draggedManaged.name}" to "${group?.name || "department"}"`,
+      );
+      if (state.soundEnabled) soundManager.play("spawn");
+    } else {
+      toast.error(`Failed to add to group: ${result.error}`);
+    }
+    return;
+  }
 
+  // Case 2: Dragged is already in a group → add target to that group
+  if (draggedManaged.groupId && !targetManaged.groupId) {
+    const result = await sessionAPI.updateGroup(draggedManaged.groupId, {
+      addMembers: [targetManaged.id],
+    });
+    if (result.ok) {
+      const group = state.zoneGroups.find(
+        (g) => g.id === draggedManaged.groupId,
+      );
+      toast.info(
+        `Added "${targetManaged.name}" to "${group?.name || "department"}"`,
+      );
+      if (state.soundEnabled) soundManager.play("spawn");
+    } else {
+      toast.error(`Failed to add to group: ${result.error}`);
+    }
+    return;
+  }
+
+  // Case 3: Both in different groups → server merges via POST
+  // Case 4: Neither in a group → create fresh group
+  const memberIds = [draggedManaged.id, targetManaged.id];
   const result = await sessionAPI.createGroup(memberIds);
   if (result.ok) {
     toast.info(`Grouped "${draggedManaged.name}" with "${targetManaged.name}"`);
-    if (state.soundEnabled) {
-      soundManager.play("spawn");
-    }
+    if (state.soundEnabled) soundManager.play("spawn");
   } else {
     toast.error(`Failed to group: ${result.error}`);
   }
 }
 
 /**
- * Ungroup a zone (dissolve its group)
+ * Add a session to an existing group/department
+ */
+async function addToGroup(groupId: string, sessionId: string): Promise<void> {
+  const managed = state.managedSessions.find(
+    (s) => s.claudeSessionId === sessionId || s.id === sessionId,
+  );
+  if (!managed) return;
+
+  const result = await sessionAPI.updateGroup(groupId, {
+    addMembers: [managed.id],
+  });
+  if (result.ok) {
+    const group = state.zoneGroups.find((g) => g.id === groupId);
+    toast.info(`Added "${managed.name}" to "${group?.name || "department"}"`);
+    if (state.soundEnabled) soundManager.play("spawn");
+  } else {
+    toast.error(`Failed: ${result.error}`);
+  }
+}
+
+/**
+ * Remove one session from its group (vs dissolving the entire group)
+ */
+async function removeFromGroup(
+  groupId: string,
+  sessionId: string,
+): Promise<void> {
+  const managed = state.managedSessions.find(
+    (s) => s.claudeSessionId === sessionId || s.id === sessionId,
+  );
+  if (!managed) return;
+
+  const result = await sessionAPI.updateGroup(groupId, {
+    removeMembers: [managed.id],
+  });
+  if (result.ok) {
+    toast.info(`Removed "${managed.name}" from department`);
+  } else {
+    toast.error(`Failed: ${result.error}`);
+  }
+}
+
+/**
+ * Rename a group/department
+ */
+async function renameGroup(groupId: string): Promise<void> {
+  const group = state.zoneGroups.find((g) => g.id === groupId);
+  if (!group) return;
+
+  const newName = prompt(t("contextMenu.enterNewName"), group.name || "");
+  if (newName === null) return;
+
+  const result = await sessionAPI.updateGroup(groupId, {
+    name: newName || undefined,
+  });
+  if (result.ok) {
+    toast.info(newName ? `Renamed to "${newName}"` : "Cleared department name");
+  } else {
+    toast.error(`Failed to rename: ${result.error}`);
+  }
+}
+
+/**
+ * Ungroup a zone (dissolve its entire group)
  */
 async function ungroupZone(sessionId: string): Promise<void> {
   const managed = state.managedSessions.find(
@@ -1004,10 +1241,36 @@ async function ungroupZone(sessionId: string): Promise<void> {
 
   const result = await sessionAPI.deleteGroup(managed.groupId);
   if (result.ok) {
-    toast.info(`Ungrouped "${managed.name}"`);
+    toast.info(`Dissolved department`);
   } else {
     toast.error(`Failed to ungroup: ${result.error}`);
   }
+}
+
+/**
+ * Focus camera on group centroid
+ */
+function focusOnGroup(groupId: string): void {
+  const group = state.zoneGroups.find((g) => g.id === groupId);
+  if (!group || !state.scene) return;
+
+  const positions: { x: number; z: number }[] = [];
+  for (const memberId of group.memberSessionIds) {
+    const session = state.managedSessions.find((s) => s.id === memberId);
+    if (session?.claudeSessionId) {
+      const pos = state.scene.getZoneWorldPosition(session.claudeSessionId);
+      if (pos) positions.push(pos);
+    }
+  }
+
+  if (positions.length === 0) return;
+
+  const centroid = {
+    x: positions.reduce((sum, p) => sum + p.x, 0) / positions.length,
+    z: positions.reduce((sum, p) => sum + p.z, 0) / positions.length,
+  };
+
+  state.scene.focusCentroid(centroid, positions.length);
 }
 
 /**
@@ -1407,8 +1670,15 @@ function setupClickToPrompt(): void {
 
           // Check what's at the target hex
           if (state.scene.isHexAvailable(targetHex, draggedZoneId)) {
-            // Free hex - move zone there
-            state.scene.moveZone(draggedZoneId, targetHex);
+            // Free hex - move zone there, update group links after animation
+            const sceneRef = state.scene;
+            const groupsRef = state.zoneGroups;
+            const sessionsRef = state.managedSessions;
+            state.scene.moveZone(draggedZoneId, targetHex, true, () => {
+              if (groupsRef.length > 0) {
+                sceneRef.updateGroupLinks(groupsRef, sessionsRef);
+              }
+            });
 
             // Persist position via server API
             const managed = state.managedSessions.find(
@@ -1416,14 +1686,6 @@ function setupClickToPrompt(): void {
             );
             if (managed) {
               sessionAPI.saveZonePosition(managed.id, targetHex);
-            }
-
-            // Refresh group link positions after zone move
-            if (state.zoneGroups.length > 0) {
-              state.scene.updateGroupLinks(
-                state.zoneGroups,
-                state.managedSessions,
-              );
             }
 
             // Play placement sound
@@ -1574,12 +1836,12 @@ function setupClickToPrompt(): void {
             [
               {
                 key: "E",
-                label: `Edit "${existingTile.text}"`,
+                label: t("contextMenu.editLabel"),
                 action: "edit_text_tile",
               },
               {
                 key: "D",
-                label: "Delete label",
+                label: t("contextMenu.deleteLabel"),
                 action: "delete_text_tile",
                 danger: true,
               },
@@ -1592,8 +1854,16 @@ function setupClickToPrompt(): void {
             event.clientX,
             event.clientY,
             [
-              { key: "C", label: "Create zone", action: "create" },
-              { key: "T", label: "Add text label", action: "create_text_tile" },
+              {
+                key: "C",
+                label: t("contextMenu.createZone"),
+                action: "create",
+              },
+              {
+                key: "T",
+                label: t("contextMenu.addLabel"),
+                action: "create_text_tile",
+              },
             ],
             { worldPosition: { x: point.x, z: point.z }, hexPosition: hex },
           );
@@ -1636,23 +1906,38 @@ function setupClickToPrompt(): void {
         action: string;
         danger?: boolean;
       }> = [
-        { key: "C", label: `Command`, action: "command" },
-        { key: "M", label: `Mode: ${modeLabel}`, action: "mode" },
-        { key: "I", label: `Info`, action: "info" },
+        { key: "C", label: t("contextMenu.command"), action: "command" },
+        {
+          key: "M",
+          label: `${t("contextMenu.mode")}: ${modeLabel}`,
+          action: "mode",
+        },
+        { key: "I", label: t("contextMenu.info"), action: "info" },
       ];
 
-      // Add ungroup option if zone is in a group
+      // Group operations
       if (managed?.groupId) {
         menuItems.push({
+          key: "N",
+          label: t("contextMenu.renameDepartment"),
+          action: "rename_group",
+        });
+        menuItems.push({
           key: "U",
-          label: "Ungroup",
-          action: "ungroup",
+          label: t("contextMenu.removeFromDepartment"),
+          action: "remove_from_group",
+        });
+      } else if (state.zoneGroups.length > 0) {
+        menuItems.push({
+          key: "G",
+          label: t("contextMenu.addToDepartment"),
+          action: "add_to_group_menu",
         });
       }
 
       menuItems.push({
         key: "D",
-        label: `Dismiss "${zoneName}"`,
+        label: t("contextMenu.deleteZone"),
         action: "delete",
         danger: true,
       });
@@ -1682,7 +1967,7 @@ function updateKeybindHelper(mode: CameraMode): void {
         break;
       case "overview":
         modeLabel.textContent = "Overview";
-        modeDesc.textContent = "all sessions";
+        modeDesc.textContent = t("commandBar.allSessions");
         break;
       case "follow-active":
         modeLabel.textContent = "Follow";
@@ -1809,7 +2094,10 @@ function setupDevPanel(): void {
 /** Map Claude sessionIds to managed session IDs */
 const claudeToManagedLink = new Map<string, string>();
 
-function getOrCreateSession(sessionId: string): SessionState | null {
+function getOrCreateSession(
+  sessionId: string,
+  eventCwd?: string,
+): SessionState | null {
   let session = state.sessions.get(sessionId);
   if (session) return session;
 
@@ -1819,7 +2107,7 @@ function getOrCreateSession(sessionId: string): SessionState | null {
 
   // Check if this session can be linked to a managed session
   // Only create zones for sessions that are linked or can be linked
-  const canLink = canLinkToManagedSession(sessionId);
+  const canLink = canLinkToManagedSession(sessionId, eventCwd);
   if (!canLink) {
     // Unlinked session - don't create a zone for it
     console.log(
@@ -1828,9 +2116,8 @@ function getOrCreateSession(sessionId: string): SessionState | null {
     return null;
   }
 
-  // Try to link to a recently-created managed session FIRST
-  // (so we can get the hint position from it)
-  const linkedManagedSession = tryLinkToManagedSession(sessionId);
+  // Try to link to a managed session (prefers CWD match, falls back to timing)
+  const linkedManagedSession = tryLinkToManagedSession(sessionId, eventCwd);
 
   // Look up hint position: first check saved zone position, then pending hints
   let hintPosition: { x: number; z: number } | undefined;
@@ -1940,9 +2227,12 @@ function getOrCreateSession(sessionId: string): SessionState | null {
 
 /**
  * Check if a Claude session can be linked to a managed session
- * Returns true if already linked or if there's a recently-created unlinked managed session
+ * Returns true if already linked or if there's a matching unlinked managed session
  */
-function canLinkToManagedSession(claudeSessionId: string): boolean {
+function canLinkToManagedSession(
+  claudeSessionId: string,
+  eventCwd?: string,
+): boolean {
   // Already linked?
   if (claudeToManagedLink.has(claudeSessionId)) {
     return true;
@@ -1955,56 +2245,57 @@ function canLinkToManagedSession(claudeSessionId: string): boolean {
     }
   }
 
-  // Is there a recently-created unlinked managed session we can link to?
-  const now = Date.now();
-  const LINK_WINDOW_MS = 30_000; // 30 seconds
-  for (const managed of state.managedSessions) {
-    if (!managed.claudeSessionId) {
-      const age = now - managed.createdAt;
-      if (age < LINK_WINDOW_MS) {
+  // Is there an unlinked managed session with matching CWD?
+  if (eventCwd) {
+    for (const managed of state.managedSessions) {
+      if (!managed.claudeSessionId && managed.cwd === eventCwd) {
         return true;
       }
     }
   }
 
+  // No timing-based fallback: it incorrectly links unrelated Claude sessions
+  // (e.g. from VSCode) to newly-created managed sessions. The server handles
+  // linking via CWD matching which is more reliable.
   return false;
 }
 
 /**
- * Try to link a Claude session to a managed session
- * Uses timing: looks for unlinked managed sessions created in the last 30 seconds
+ * Try to link a Claude session to a managed session.
+ * Priority: 1) CWD match, 2) timing (recently created within 30s).
+ * CWD matching is more reliable because each managed session was spawned
+ * in a specific directory - this prevents cross-linking when multiple
+ * sessions exist.
  */
 function tryLinkToManagedSession(
   claudeSessionId: string,
+  eventCwd?: string,
 ): ManagedSession | null {
-  const now = Date.now();
-  const LINK_WINDOW_MS = 30_000; // 30 seconds
-
   // Check if already linked
   if (claudeToManagedLink.has(claudeSessionId)) {
     const managedId = claudeToManagedLink.get(claudeSessionId)!;
     return state.managedSessions.find((s) => s.id === managedId) || null;
   }
 
-  // Find unlinked managed sessions created recently
-  for (const managed of state.managedSessions) {
-    // Skip if already linked
-    if (managed.claudeSessionId) continue;
-
-    // Check if created recently
-    const age = now - managed.createdAt;
-    if (age < LINK_WINDOW_MS) {
-      // Link them!
-      claudeToManagedLink.set(claudeSessionId, managed.id);
-      managed.claudeSessionId = claudeSessionId;
-
-      // Notify server about the link
-      linkSessionOnServer(managed.id, claudeSessionId);
-
-      return managed;
+  // Priority 1: Match by CWD (most reliable)
+  if (eventCwd) {
+    for (const managed of state.managedSessions) {
+      if (managed.claudeSessionId) continue;
+      if (managed.cwd && managed.cwd === eventCwd) {
+        claudeToManagedLink.set(claudeSessionId, managed.id);
+        managed.claudeSessionId = claudeSessionId;
+        linkSessionOnServer(managed.id, claudeSessionId);
+        console.log(
+          `Linked session ${claudeSessionId.slice(0, 8)} to "${managed.name}" by CWD match`,
+        );
+        return managed;
+      }
     }
   }
 
+  // No timing-based fallback: it incorrectly links unrelated Claude sessions
+  // (e.g. from VSCode) to newly-created managed sessions. The server handles
+  // linking via CWD matching which is more reliable.
   return null;
 }
 
@@ -2117,6 +2408,9 @@ function focusSession(sessionId: string): void {
 
   // Update prompt target indicator
   updatePromptTarget(sessionId, session.color);
+
+  // Update mode selector to reflect this session's mode
+  updateModeSelector(sessionId);
 
   updateStats();
 }
@@ -2251,7 +2545,7 @@ function updateStats() {
 function handleEvent(event: ClaudeEvent) {
   // Get or create session for this event
   // Returns null if the session isn't linked to a managed session
-  const session = getOrCreateSession(event.sessionId);
+  const session = getOrCreateSession(event.sessionId, event.cwd);
 
   state.eventHistory.push(event);
 
@@ -2274,6 +2568,19 @@ function handleEvent(event: ClaudeEvent) {
       : null,
   };
   eventBus.emit(event.type as EventType, event as any, eventContext);
+
+  // Auto-correct feed filter: if this event's session maps to the selected managed session
+  // but the filter doesn't match, update it immediately. This handles race conditions where
+  // events arrive before the sessions update (e.g., after restart or new session linking).
+  if (state.selectedManagedSession && state.feedManager) {
+    const managedId = claudeToManagedLink.get(event.sessionId);
+    if (
+      managedId === state.selectedManagedSession &&
+      state.feedManager.getFilter() !== event.sessionId
+    ) {
+      state.feedManager.setFilter(event.sessionId);
+    }
+  }
 
   // If no session (unlinked), still add to feed/timeline with default color but skip 3D updates
   const eventColor = session?.color ?? 0x888888;
@@ -2427,6 +2734,22 @@ async function fetchConfig() {
 }
 
 /**
+ * Send Ctrl+C to a session to interrupt it.
+ * Uses session-specific endpoint for managed sessions, falls back to legacy /cancel.
+ * Sends twice with a delay to ensure Claude Code actually stops.
+ */
+async function cancelSession(sessionId?: string): Promise<boolean> {
+  const url = sessionId
+    ? `${API_URL}/sessions/${sessionId}/cancel`
+    : CANCEL_URL;
+
+  const response = await fetch(url, { method: "POST" });
+  const data = await response.json();
+
+  return data.ok;
+}
+
+/**
  * Interrupt (Ctrl+C) the currently selected session
  * Called from keyboard shortcut handler
  */
@@ -2439,11 +2762,12 @@ async function interruptSession(sessionName: string): Promise<void> {
   });
 
   try {
-    const response = await fetch(CANCEL_URL, { method: "POST" });
-    const data = await response.json();
+    // Find the managed session to get its ID
+    const session = state.managedSessions.find((s) => s.name === sessionName);
+    const ok = await cancelSession(session?.id);
 
-    if (!data.ok) {
-      toast.error(data.error || "Interrupt failed", {
+    if (!ok) {
+      toast.error("Interrupt failed", {
         icon: "❌",
         duration: 3000,
       });
@@ -2486,17 +2810,11 @@ function setupPromptForm() {
   // Setup slash command autocomplete
   setupSlashCommands(input);
 
-  // Keyboard handling: Enter to send, Up/Down for history
+  // Keyboard handling: Cmd/Ctrl+Enter to send, Up/Down for history
   // Note: Skip if slash commands already handled the event
   input.addEventListener("keydown", (e) => {
-    // Enter to send (Ctrl+Enter for newline)
-    if (
-      e.key === "Enter" &&
-      !e.ctrlKey &&
-      !e.metaKey &&
-      !e.shiftKey &&
-      !e.defaultPrevented
-    ) {
+    // Cmd/Ctrl+Enter to send
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.defaultPrevented) {
       e.preventDefault();
       form.requestSubmit();
       return;
@@ -2560,28 +2878,29 @@ function setupPromptForm() {
     }
   });
 
-  // Cancel button handler
+  // Cancel/Stop button handler
   if (cancelBtn) {
     cancelBtn.addEventListener("click", async () => {
       if (status) {
-        status.textContent = "Cancelling...";
+        status.textContent = t("status.stopping");
         status.className = "";
       }
       try {
-        const response = await fetch(CANCEL_URL, { method: "POST" });
-        const data = await response.json();
+        const ok = await cancelSession(
+          state.selectedManagedSession ?? undefined,
+        );
         if (status) {
-          if (data.ok) {
-            status.textContent = "Cancelled!";
+          if (ok) {
+            status.textContent = t("status.stopped");
             status.className = "success";
           } else {
-            status.textContent = data.error || "Cancel failed";
+            status.textContent = t("status.stopFailed");
             status.className = "error";
           }
         }
       } catch (error) {
         if (status) {
-          status.textContent = "Connection error";
+          status.textContent = t("status.connectionError");
           status.className = "error";
         }
       }
@@ -2603,13 +2922,11 @@ function setupPromptForm() {
     const prompt = input.value.trim();
     if (!prompt) return;
 
-    // Always send prompts to Claude Code
-    const isCommand = isSlashCommand(prompt);
     const send = true;
 
     button.disabled = true;
     if (status) {
-      status.textContent = send ? "Sending to Claude..." : "Saving...";
+      status.textContent = send ? t("status.sending") : t("status.sending");
       status.className = "";
     }
 
@@ -2629,7 +2946,9 @@ function setupPromptForm() {
         );
         data = await sendPromptToManagedSession(prompt);
         if (data.ok && status) {
-          status.textContent = `Sent to ${session?.name || "session"}!`;
+          status.textContent = t("status.sentTo", {
+            name: session?.name || "session",
+          });
           status.className = "success";
           // Add to history and reset navigation
           state.promptHistory.push(prompt);
@@ -2639,7 +2958,7 @@ function setupPromptForm() {
           input.style.height = "auto";
           state.feedManager?.scrollToBottom();
         } else if (!data.ok && status) {
-          status.textContent = data.error || "Failed to send";
+          status.textContent = data.error || t("status.failedToSend");
           status.className = "error";
         }
       } else {
@@ -2661,26 +2980,28 @@ function setupPromptForm() {
           state.feedManager?.scrollToBottom();
           if (status) {
             if (data.sent) {
-              status.textContent = "Sent to Claude!";
+              status.textContent = t("status.sentToClaude");
             } else if (data.tmuxError) {
               status.textContent = `Saved (tmux error: ${data.tmuxError})`;
               status.className = "error";
               return;
             } else {
-              status.textContent = `Saved to ${data.saved}`;
+              status.textContent = t("status.savedTo", {
+                path: data.saved || "",
+              });
             }
             status.className = "success";
           }
         } else {
           if (status) {
-            status.textContent = data.error || "Failed to send";
+            status.textContent = data.error || t("status.failedToSend");
             status.className = "error";
           }
         }
       }
     } catch (error) {
       if (status) {
-        status.textContent = "Connection error";
+        status.textContent = t("status.connectionError");
         status.className = "error";
       }
     } finally {
@@ -2699,54 +3020,16 @@ function setupPromptForm() {
     input.focus();
   });
 
-  // Focus when hovering over the right panel (activity feed area)
-  const feedPanel = document.getElementById("feed-panel");
-  if (feedPanel) {
-    feedPanel.addEventListener("mouseenter", () => {
+  // Focus when hovering over the feed drawer
+  const feedDrawer = document.getElementById("feed-drawer");
+  if (feedDrawer) {
+    feedDrawer.addEventListener("mouseenter", () => {
       input.focus();
     });
   }
 
   // Focus on initial load
   input.focus();
-}
-
-// ============================================================================
-// Panel Tab Switching (Activity / Team Chat)
-// ============================================================================
-
-function setupPanelTabs() {
-  const tabs = document.querySelectorAll("#panel-tabs .panel-tab");
-  const sessionsPanel = document.getElementById("sessions-panel");
-  const terminalPanel = document.getElementById("terminal-panel");
-  const feedWrapper = document.getElementById("activity-feed-wrapper");
-  const imWrapper = document.getElementById("im-channel-wrapper");
-
-  if (!tabs.length) return;
-
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const target = (tab as HTMLElement).dataset.tab;
-
-      // Update active tab
-      tabs.forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-
-      if (target === "feed") {
-        // Show activity feed panels
-        if (sessionsPanel) sessionsPanel.style.display = "";
-        if (terminalPanel) terminalPanel.style.display = "";
-        if (feedWrapper) feedWrapper.style.display = "";
-        if (imWrapper) imWrapper.classList.add("hidden");
-      } else if (target === "im") {
-        // Show IM channel
-        if (sessionsPanel) sessionsPanel.style.display = "none";
-        if (terminalPanel) terminalPanel.style.display = "none";
-        if (feedWrapper) feedWrapper.style.display = "none";
-        if (imWrapper) imWrapper.classList.remove("hidden");
-      }
-    });
-  });
 }
 
 // ============================================================================
@@ -2953,10 +3236,14 @@ function setupSettingsModal(): void {
       portStatus.className = `port-status ${connected ? "connected" : "disconnected"}`;
     }
     modal.classList.add("visible");
+    if (state.soundEnabled) soundManager.play("modal_open");
   });
 
   // Close modal
-  const closeModal = () => modal.classList.remove("visible");
+  const closeModal = () => {
+    if (state.soundEnabled) soundManager.play("modal_cancel");
+    modal.classList.remove("visible");
+  };
   closeBtn?.addEventListener("click", closeModal);
   modal.addEventListener("click", (e) => {
     if (e.target === modal) closeModal();
@@ -3015,6 +3302,25 @@ function setupSettingsModal(): void {
     }
   });
 
+  // Language switcher buttons
+  const langBtns = modal.querySelectorAll<HTMLButtonElement>(".lang-btn");
+  function updateLangBtnState() {
+    const current = getLocale();
+    langBtns.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.lang === current);
+    });
+  }
+  updateLangBtnState();
+  langBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const lang = btn.dataset.lang as Locale;
+      if (lang && lang !== getLocale()) {
+        setLocale(lang);
+        updateLangBtnState();
+      }
+    });
+  });
+
   // Refresh sessions button
   refreshBtn?.addEventListener("click", async () => {
     await sessionAPI.refreshSessions();
@@ -3057,10 +3363,14 @@ function setupAboutModal(): void {
         });
     }
     modal.classList.add("visible");
+    if (state.soundEnabled) soundManager.play("modal_open");
   });
 
   // Close modal
-  const closeModal = () => modal.classList.remove("visible");
+  const closeModal = () => {
+    if (state.soundEnabled) soundManager.play("modal_cancel");
+    modal.classList.remove("visible");
+  };
   closeBtn?.addEventListener("click", closeModal);
   modal.addEventListener("click", (e) => {
     if (e.target === modal) closeModal();
@@ -3146,6 +3456,9 @@ function hideNotConnectedOverlay(): void {
 // ============================================================================
 
 function init() {
+  // Initialize i18n before any UI rendering
+  initI18n();
+
   const container = document.getElementById("canvas-container");
   if (!container) {
     console.error("Canvas container not found");
@@ -3219,12 +3532,6 @@ function init() {
   // Initialize feed manager
   state.feedManager = new FeedManager();
   state.feedManager.setupScrollButton();
-
-  // Initialize IM channel
-  state.imChannel = new IMChannel();
-
-  // Setup panel tab switching (Activity / Team Chat)
-  setupPanelTabs();
 
   // Register EventBus handlers (decoupled event handling)
   registerAllHandlers();
@@ -3302,7 +3609,7 @@ function init() {
         // Proactively create zone if it doesn't exist yet
         // This handles sessions that have no recent events in history
         if (state.scene && !state.scene.zones.has(session.claudeSessionId)) {
-          // Use saved position if available
+          // Use saved position if available, then check pending hints from click-to-create
           let hintPosition: { x: number; z: number } | undefined;
           if (session.zonePosition) {
             const cartesian = state.scene.hexGrid.axialToCartesian(
@@ -3313,6 +3620,13 @@ function init() {
               `Restoring zone for "${session.name}" at saved position`,
               session.zonePosition,
             );
+          } else if (pendingZoneHints.has(session.name)) {
+            hintPosition = pendingZoneHints.get(session.name);
+            pendingZoneHints.delete(session.name);
+            console.log(
+              `Creating zone for "${session.name}" at clicked position`,
+              hintPosition,
+            );
           } else {
             console.log(
               `Creating zone for session "${session.name}" (no recent events in history)`,
@@ -3321,6 +3635,18 @@ function init() {
           const zone = state.scene.createZone(session.claudeSessionId, {
             hintPosition,
           });
+
+          // Clean up pending zone if this session had one
+          const pendingZoneId = pendingZonesToCleanup.get(session.name);
+          if (pendingZoneId) {
+            state.scene.removePendingZone(pendingZoneId);
+            pendingZonesToCleanup.delete(session.name);
+            const timeoutId = pendingZoneTimeouts.get(pendingZoneId);
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              pendingZoneTimeouts.delete(pendingZoneId);
+            }
+          }
 
           // Play zone creation sound
           if (state.soundEnabled) {
@@ -3431,6 +3757,27 @@ function init() {
     state.managedSessions = sessions;
     renderManagedSessions();
 
+    // Re-apply feed filter if the selected session's claudeSessionId changed
+    // This handles the case where linking happens after the user selected a session,
+    // AND the case where claudeSessionId becomes undefined after a restart
+    if (state.selectedManagedSession) {
+      const selected = sessions.find(
+        (s) => s.id === state.selectedManagedSession,
+      );
+      if (selected) {
+        const targetFilter = selected.claudeSessionId ?? "__none__";
+        const currentFilter = state.feedManager?.getFilter();
+        if (currentFilter !== targetFilter) {
+          state.feedManager?.setFilter(targetFilter);
+        }
+      }
+    }
+
+    // Update mode selector if currently focused session changed mode
+    if (state.focusedSessionId) {
+      updateModeSelector(state.focusedSessionId);
+    }
+
     // Sync zone labels with managed session names
     syncZoneLabels();
 
@@ -3504,8 +3851,9 @@ function init() {
 
   state.client.connect();
 
-  // Setup prompt form
+  // Setup prompt form and mode selector
   setupPromptForm();
+  setupModeSelector();
 
   // Setup terminal toggle
   setupTerminalToggle();
@@ -3666,7 +4014,6 @@ function init() {
   // Expose demo orchestrator for console access (demo video)
   const demo = new DemoOrchestrator({
     scene: state.scene,
-    imChannel: state.imChannel,
   });
   (window as any).demo = demo;
 

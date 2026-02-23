@@ -519,12 +519,14 @@ export interface UpdateTextTileRequest {
 // Zone Groups (Civ6-style adjacent hex grouping)
 // ============================================================================
 
-/** A group of zones linked together on adjacent hexes */
+/** A group of zones linked together as a "department" */
 export interface ZoneGroup {
   /** Unique group ID (UUID) */
   id: string;
-  /** Optional group label */
+  /** Optional group/department label */
   name?: string;
+  /** CSS hex color for department visual identity (e.g., "#60a5fa") */
+  color?: string;
   /** Session IDs (managed session IDs) of grouped zones */
   memberSessionIds: string[];
   /** Creation timestamp */
@@ -537,6 +539,20 @@ export interface CreateZoneGroupRequest {
   memberSessionIds: string[];
   /** Optional group name */
   name?: string;
+  /** Optional color */
+  color?: string;
+}
+
+/** Request to update a zone group (add/remove members, rename, recolor) */
+export interface UpdateZoneGroupRequest {
+  /** New group name */
+  name?: string;
+  /** Session IDs to add to the group */
+  addMembers?: string[];
+  /** Session IDs to remove from the group */
+  removeMembers?: string[];
+  /** New color */
+  color?: string;
 }
 
 // ============================================================================

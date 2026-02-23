@@ -114,7 +114,7 @@
 /* Keybind Helper */
 #keybind-helper {
   position: absolute;
-  bottom: 70px;
+  bottom: 110px;
   left: 12px;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
@@ -177,7 +177,7 @@
 /* Icon Timeline at bottom of scene */
 #timeline-container {
   position: absolute;
-  bottom: 12px;
+  bottom: 100px;
   left: 12px;
   right: 12px;
 }
@@ -214,6 +214,22 @@
 .timeline-icon:hover {
   transform: scale(1.15);
   z-index: 10;
+}
+
+.timeline-icon.success:hover {
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.4);
+}
+
+.timeline-icon.fail:hover {
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.4);
+}
+
+.timeline-icon.pending:hover {
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+}
+
+.timeline-icon.lifecycle:hover {
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.4);
 }
 
 .timeline-icon.success {
@@ -437,7 +453,7 @@
 /* Draw Mode Palette */
 #draw-palette {
   position: absolute;
-  bottom: 70px;
+  bottom: 110px;
   right: 12px;
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px);
@@ -650,7 +666,7 @@
 
 #toast-container {
   position: fixed;
-  bottom: 80px;
+  bottom: 120px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;

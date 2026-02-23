@@ -5,33 +5,36 @@
  * and sends commands directly to that zone's session.
  */
 
-import * as THREE from 'three'
-import { soundManager } from '../audio/SoundManager'
+import * as THREE from "three";
+import { soundManager } from "../audio/SoundManager";
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export interface ZoneCommandOptions {
-  sessionId: string
-  sessionName: string
-  sessionColor: number
-  zonePosition: THREE.Vector3
-  camera: THREE.PerspectiveCamera
-  renderer: THREE.WebGLRenderer
-  onSend: (sessionId: string, prompt: string) => Promise<{ ok: boolean; error?: string }>
+  sessionId: string;
+  sessionName: string;
+  sessionColor: number;
+  zonePosition: THREE.Vector3;
+  camera: THREE.PerspectiveCamera;
+  renderer: THREE.WebGLRenderer;
+  onSend: (
+    sessionId: string,
+    prompt: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
 }
 
-type ResolveFunction = (sent: boolean) => void
+type ResolveFunction = (sent: boolean) => void;
 
 // ============================================================================
 // State
 // ============================================================================
 
-let currentOptions: ZoneCommandOptions | null = null
-let resolvePromise: ResolveFunction | null = null
-let isVisible = false
-let element: HTMLElement | null = null
+let currentOptions: ZoneCommandOptions | null = null;
+let resolvePromise: ResolveFunction | null = null;
+let isVisible = false;
+let element: HTMLElement | null = null;
 
 // ============================================================================
 // Setup
@@ -42,9 +45,9 @@ let element: HTMLElement | null = null
  */
 export function setupZoneCommandModal(): void {
   // Create the modal element
-  element = document.createElement('div')
-  element.id = 'zone-command-modal'
-  element.className = 'zone-command-modal'
+  element = document.createElement("div");
+  element.id = "zone-command-modal";
+  element.className = "zone-command-modal";
   element.innerHTML = `
     <div class="zone-command-content">
       <div class="zone-command-header">
@@ -52,7 +55,7 @@ export function setupZoneCommandModal(): void {
           <span class="zone-command-dot"></span>
           <span class="zone-command-name"></span>
         </span>
-        <span class="zone-command-hint">Enter to send</span>
+        <span class="zone-command-hint">⌘/Ctrl+Enter to send</span>
       </div>
       <div class="zone-command-body">
         <textarea
@@ -66,49 +69,53 @@ export function setupZoneCommandModal(): void {
       </div>
       <div class="zone-command-connector"></div>
     </div>
-  `
-  document.body.appendChild(element)
+  `;
+  document.body.appendChild(element);
 
   // Setup event listeners
-  const input = element.querySelector('.zone-command-input') as HTMLTextAreaElement
-  const sendBtn = element.querySelector('.zone-command-send') as HTMLButtonElement
+  const input = element.querySelector(
+    ".zone-command-input",
+  ) as HTMLTextAreaElement;
+  const sendBtn = element.querySelector(
+    ".zone-command-send",
+  ) as HTMLButtonElement;
 
   // Auto-expand textarea
-  input?.addEventListener('input', () => {
-    input.style.height = 'auto'
-    input.style.height = Math.min(input.scrollHeight, 150) + 'px'
-  })
+  input?.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 150) + "px";
+  });
 
-  // Enter to send (Shift+Enter for newline)
-  input?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendCommand()
+  // Cmd/Ctrl+Enter to send
+  input?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      sendCommand();
     }
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      hideZoneCommandModal()
+    if (e.key === "Escape") {
+      e.preventDefault();
+      hideZoneCommandModal();
     }
-  })
+  });
 
   // Send button click
-  sendBtn?.addEventListener('click', () => {
-    sendCommand()
-  })
+  sendBtn?.addEventListener("click", () => {
+    sendCommand();
+  });
 
   // Click outside to dismiss
-  element.addEventListener('mousedown', (e) => {
+  element.addEventListener("mousedown", (e) => {
     if (e.target === element) {
-      hideZoneCommandModal()
+      hideZoneCommandModal();
     }
-  })
+  });
 
   // Global escape
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && isVisible) {
-      hideZoneCommandModal()
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isVisible) {
+      hideZoneCommandModal();
     }
-  })
+  });
 }
 
 // ============================================================================
@@ -118,68 +125,73 @@ export function setupZoneCommandModal(): void {
 /**
  * Show the zone command modal near a zone
  */
-export function showZoneCommandModal(options: ZoneCommandOptions): Promise<boolean> {
+export function showZoneCommandModal(
+  options: ZoneCommandOptions,
+): Promise<boolean> {
   if (!element) {
-    console.warn('ZoneCommandModal not initialized')
-    return Promise.resolve(false)
+    console.warn("ZoneCommandModal not initialized");
+    return Promise.resolve(false);
   }
 
-  currentOptions = options
-  isVisible = true
+  currentOptions = options;
+  isVisible = true;
 
   // Update target display
-  const dot = element.querySelector('.zone-command-dot') as HTMLElement
-  const name = element.querySelector('.zone-command-name') as HTMLElement
-  const input = element.querySelector('.zone-command-input') as HTMLTextAreaElement
+  const dot = element.querySelector(".zone-command-dot") as HTMLElement;
+  const name = element.querySelector(".zone-command-name") as HTMLElement;
+  const input = element.querySelector(
+    ".zone-command-input",
+  ) as HTMLTextAreaElement;
 
-  const colorHex = `#${options.sessionColor.toString(16).padStart(6, '0')}`
-  dot.style.background = colorHex
-  dot.style.boxShadow = `0 0 10px ${colorHex}`
-  name.textContent = options.sessionName
-  name.style.color = colorHex
+  const colorHex = `#${options.sessionColor.toString(16).padStart(6, "0")}`;
+  dot.style.background = colorHex;
+  dot.style.boxShadow = `0 0 10px ${colorHex}`;
+  name.textContent = options.sessionName;
+  name.style.color = colorHex;
 
   // Clear and reset input
-  input.value = ''
-  input.style.height = 'auto'
+  input.value = "";
+  input.style.height = "auto";
 
   // Position modal near the zone
-  positionNearZone(options)
+  positionNearZone(options);
 
   // Show with animation
-  element.classList.add('visible')
-  soundManager.play('notification')
+  element.classList.add("visible");
+  soundManager.play("modal_open");
 
   // Focus input
   setTimeout(() => {
-    input.focus()
-  }, 50)
+    input.focus();
+  }, 50);
 
   return new Promise((resolve) => {
-    resolvePromise = resolve
-  })
+    resolvePromise = resolve;
+  });
 }
 
 /**
  * Hide the modal
  */
 export function hideZoneCommandModal(): void {
-  if (!element) return
+  if (!element || !isVisible) return;
 
-  element.classList.remove('visible')
-  isVisible = false
+  soundManager.play("modal_cancel");
+  element.classList.remove("visible");
+  isVisible = false;
 
   if (resolvePromise) {
-    resolvePromise(false)
-    resolvePromise = null
+    resolvePromise(false);
+    resolvePromise = null;
   }
-  currentOptions = null
+  currentOptions = null;
 }
 
 /**
  * Check if modal is visible
  */
 export function isZoneCommandModalVisible(): boolean {
-  return isVisible
+  return isVisible;
 }
 
 // ============================================================================
@@ -190,100 +202,112 @@ export function isZoneCommandModalVisible(): boolean {
  * Position the modal near the 3D zone
  */
 function positionNearZone(options: ZoneCommandOptions): void {
-  if (!element) return
+  if (!element) return;
 
-  const content = element.querySelector('.zone-command-content') as HTMLElement
-  const connector = element.querySelector('.zone-command-connector') as HTMLElement
+  const content = element.querySelector(".zone-command-content") as HTMLElement;
+  const connector = element.querySelector(
+    ".zone-command-connector",
+  ) as HTMLElement;
 
   // Project 3D position to screen
-  const pos = options.zonePosition.clone()
-  pos.y += 2 // Slightly above the zone
-  pos.project(options.camera)
+  const pos = options.zonePosition.clone();
+  pos.y += 2; // Slightly above the zone
+  pos.project(options.camera);
 
   // Convert to screen coordinates
-  const canvas = options.renderer.domElement
-  const screenX = (pos.x * 0.5 + 0.5) * canvas.clientWidth
-  const screenY = (-pos.y * 0.5 + 0.5) * canvas.clientHeight
+  const canvas = options.renderer.domElement;
+  const screenX = (pos.x * 0.5 + 0.5) * canvas.clientWidth;
+  const screenY = (-pos.y * 0.5 + 0.5) * canvas.clientHeight;
 
   // Position content with smart viewport clamping
-  const contentWidth = 320
-  const contentHeight = 100
-  const margin = 20
+  const contentWidth = 320;
+  const contentHeight = 100;
+  const margin = 20;
 
-  let x = screenX - contentWidth / 2
-  let y = screenY - contentHeight - 30 // Above the zone
+  let x = screenX - contentWidth / 2;
+  let y = screenY - contentHeight - 30; // Above the zone
 
   // Clamp to viewport
-  x = Math.max(margin, Math.min(window.innerWidth - contentWidth - margin, x))
-  y = Math.max(margin, Math.min(window.innerHeight - contentHeight - margin, y))
+  x = Math.max(margin, Math.min(window.innerWidth - contentWidth - margin, x));
+  y = Math.max(
+    margin,
+    Math.min(window.innerHeight - contentHeight - margin, y),
+  );
 
-  content.style.left = `${x}px`
-  content.style.top = `${y}px`
+  content.style.left = `${x}px`;
+  content.style.top = `${y}px`;
 
   // Position connector line from modal to zone
-  const contentCenterX = x + contentWidth / 2
-  const contentBottomY = y + contentHeight
+  const contentCenterX = x + contentWidth / 2;
+  const contentBottomY = y + contentHeight;
 
   // Calculate connector angle and length
-  const dx = screenX - contentCenterX
-  const dy = screenY - contentBottomY
-  const length = Math.sqrt(dx * dx + dy * dy)
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI)
+  const dx = screenX - contentCenterX;
+  const dy = screenY - contentBottomY;
+  const length = Math.sqrt(dx * dx + dy * dy);
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
 
-  connector.style.width = `${length}px`
-  connector.style.left = `${contentCenterX}px`
-  connector.style.top = `${contentBottomY}px`
-  connector.style.transform = `rotate(${angle}deg)`
-  connector.style.transformOrigin = '0 0'
+  connector.style.width = `${length}px`;
+  connector.style.left = `${contentCenterX}px`;
+  connector.style.top = `${contentBottomY}px`;
+  connector.style.transform = `rotate(${angle}deg)`;
+  connector.style.transformOrigin = "0 0";
 
   // Color the connector
-  const colorHex = `#${options.sessionColor.toString(16).padStart(6, '0')}`
-  connector.style.background = `linear-gradient(90deg, ${colorHex}40, ${colorHex}00)`
+  const colorHex = `#${options.sessionColor.toString(16).padStart(6, "0")}`;
+  connector.style.background = `linear-gradient(90deg, ${colorHex}40, ${colorHex}00)`;
 }
 
 /**
  * Send the command to the zone's session
  */
 async function sendCommand(): Promise<void> {
-  if (!element || !currentOptions) return
+  if (!element || !currentOptions) return;
 
-  const input = element.querySelector('.zone-command-input') as HTMLTextAreaElement
-  const sendBtn = element.querySelector('.zone-command-send') as HTMLButtonElement
-  const prompt = input.value.trim()
+  const input = element.querySelector(
+    ".zone-command-input",
+  ) as HTMLTextAreaElement;
+  const sendBtn = element.querySelector(
+    ".zone-command-send",
+  ) as HTMLButtonElement;
+  const prompt = input.value.trim();
 
-  if (!prompt) return
+  if (!prompt) return;
 
   // Disable while sending
-  input.disabled = true
-  sendBtn.disabled = true
-  sendBtn.innerHTML = '<span class="send-icon spinning">↻</span>'
+  input.disabled = true;
+  sendBtn.disabled = true;
+  sendBtn.innerHTML = '<span class="send-icon spinning">↻</span>';
 
   try {
-    const result = await currentOptions.onSend(currentOptions.sessionId, prompt)
+    const result = await currentOptions.onSend(
+      currentOptions.sessionId,
+      prompt,
+    );
 
     if (result.ok) {
       // Success - close modal
-      soundManager.play('prompt')
-      element.classList.remove('visible')
-      isVisible = false
+      soundManager.play("prompt");
+      element.classList.remove("visible");
+      isVisible = false;
 
       if (resolvePromise) {
-        resolvePromise(true)
-        resolvePromise = null
+        resolvePromise(true);
+        resolvePromise = null;
       }
-      currentOptions = null
+      currentOptions = null;
     } else {
       // Error - show feedback but keep open
-      input.classList.add('error')
-      setTimeout(() => input.classList.remove('error'), 500)
+      input.classList.add("error");
+      setTimeout(() => input.classList.remove("error"), 500);
     }
   } catch (err) {
-    console.error('Failed to send command:', err)
-    input.classList.add('error')
-    setTimeout(() => input.classList.remove('error'), 500)
+    console.error("Failed to send command:", err);
+    input.classList.add("error");
+    setTimeout(() => input.classList.remove("error"), 500);
   } finally {
-    input.disabled = false
-    sendBtn.disabled = false
-    sendBtn.innerHTML = '<span class="send-icon">↗</span>'
+    input.disabled = false;
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = '<span class="send-icon">↗</span>';
   }
 }

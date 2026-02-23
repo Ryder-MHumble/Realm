@@ -43,6 +43,7 @@ import type {
   UpdateTextTileRequest,
   ZoneGroup,
   CreateZoneGroupRequest,
+  UpdateZoneGroupRequest,
 } from "../shared/types.js";
 import { DEFAULTS } from "../shared/defaults.js";
 import { GitStatusManager } from "./GitStatusManager.js";
@@ -252,8 +253,12 @@ function collectRequestBody(
 }
 
 /**
- * Safely send text to a tmux session using load-buffer + paste-buffer.
- * Uses execFile with proper arguments to prevent shell injection.
+ * Safely send text to a tmux session.
+ *
+ * For slash commands (starting with /), uses send-keys -l so that Claude Code
+ * receives individual keystrokes and can detect the slash command properly.
+ * For regular prompts, uses load-buffer + paste-buffer to safely handle
+ * arbitrary text without shell injection risks.
  */
 async function sendToTmuxSafe(
   tmuxSession: string,
@@ -262,7 +267,17 @@ async function sendToTmuxSafe(
   // Validate session name
   validateTmuxSession(tmuxSession);
 
-  // Create temp file with cryptographically secure random name
+  const isSlashCommand = text.trimStart().startsWith("/");
+
+  if (isSlashCommand) {
+    // Use send-keys -l for slash commands so Claude Code detects them as typed input
+    await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "-l", text]);
+    await new Promise((r) => setTimeout(r, 100));
+    await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "Enter"]);
+    return;
+  }
+
+  // For regular prompts, use load-buffer + paste-buffer (safe for arbitrary text)
   const tempFile = `/tmp/vibecraft-prompt-${Date.now()}-${randomBytes(16).toString("hex")}.txt`;
   writeFileSync(tempFile, text);
 
@@ -272,7 +287,7 @@ async function sendToTmuxSafe(
     // Paste buffer into session
     await execFileAsync("tmux", ["paste-buffer", "-t", tmuxSession]);
     // Send Enter to submit
-    await new Promise((r) => setTimeout(r, 100)); // Small delay like original
+    await new Promise((r) => setTimeout(r, 100));
     await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "Enter"]);
   } finally {
     // Clean up temp file
@@ -871,8 +886,8 @@ function createSession(
     const flags = options.flags || {};
     const claudeArgs: string[] = [];
 
-    // Defaults: continue=true, skipPermissions=true, chrome=false
-    if (flags.continue !== false) {
+    // Defaults: continue=false, skipPermissions=true, chrome=false
+    if (flags.continue === true) {
       claudeArgs.push("-c");
     }
     if (flags.skipPermissions !== false) {
@@ -1112,6 +1127,107 @@ function checkSessionHealth(): void {
       }
     },
   );
+}
+
+/**
+ * Restart a single offline session by respawning its tmux session
+ */
+function restartOfflineSession(session: ManagedSession): Promise<boolean> {
+  return new Promise((resolvePromise) => {
+    let cwd: string;
+    try {
+      cwd = validateDirectoryPath(session.cwd || process.cwd());
+    } catch {
+      log(`Cannot auto-restart "${session.name}": invalid cwd ${session.cwd}`);
+      resolvePromise(false);
+      return;
+    }
+
+    // Kill any stale tmux session with the same name (ignore errors)
+    execFile(
+      "tmux",
+      ["kill-session", "-t", session.tmuxSession],
+      EXEC_OPTIONS,
+      () => {
+        // Respawn tmux session with claude
+        execFile(
+          "tmux",
+          [
+            "new-session",
+            "-d",
+            "-s",
+            session.tmuxSession,
+            "-c",
+            cwd,
+            `PATH=${EXEC_PATH} claude --permission-mode=bypassPermissions --dangerously-skip-permissions`,
+          ],
+          EXEC_OPTIONS,
+          (error) => {
+            if (error) {
+              log(`Failed to auto-restart "${session.name}": ${error.message}`);
+              resolvePromise(false);
+              return;
+            }
+
+            session.status = "idle";
+            session.lastActivity = Date.now();
+            session.claudeSessionId = undefined;
+            session.currentTool = undefined;
+
+            // Clear old Claude→Managed linking for this session
+            for (const [claudeId, managedId] of claudeToManagedMap) {
+              if (managedId === session.id) {
+                claudeToManagedMap.delete(claudeId);
+              }
+            }
+
+            // Send Enter after delay to dismiss "Welcome back!" dialog
+            setTimeout(() => {
+              execFile(
+                "tmux",
+                ["send-keys", "-t", session.tmuxSession, "Enter"],
+                EXEC_OPTIONS,
+                () => {},
+              );
+            }, 3000);
+
+            log(
+              `Auto-restarted session: ${session.name} (${session.id.slice(0, 8)}) -> tmux:${session.tmuxSession}`,
+            );
+            resolvePromise(true);
+          },
+        );
+      },
+    );
+  });
+}
+
+/**
+ * Auto-restart all offline sessions after server startup
+ */
+async function autoRestartOfflineSessions(): Promise<void> {
+  const offlineSessions = Array.from(managedSessions.values()).filter(
+    (s) => s.status === "offline",
+  );
+
+  if (offlineSessions.length === 0) {
+    debug("No offline sessions to auto-restart");
+    return;
+  }
+
+  log(`Auto-restarting ${offlineSessions.length} offline session(s)...`);
+
+  let restarted = 0;
+  for (const session of offlineSessions) {
+    const ok = await restartOfflineSession(session);
+    if (ok) restarted++;
+  }
+
+  if (restarted > 0) {
+    broadcastSessions();
+    saveSessions();
+    log(`Auto-restarted ${restarted}/${offlineSessions.length} session(s)`);
+  }
 }
 
 /**
@@ -1514,6 +1630,56 @@ function findManagedSession(
   return undefined;
 }
 
+/**
+ * Try to auto-link a Claude session to a managed session by matching CWD.
+ * This is more reliable than timing-based linking since each managed session
+ * was spawned in a specific directory.
+ * Returns the linked managed session if successful.
+ */
+function tryAutoLinkByCwd(
+  claudeSessionId: string,
+  eventCwd: string | undefined,
+): ManagedSession | undefined {
+  if (!eventCwd) return undefined;
+
+  // Already linked
+  if (claudeToManagedMap.has(claudeSessionId)) {
+    return findManagedSession(claudeSessionId);
+  }
+
+  const normalizedEventCwd = resolve(eventCwd);
+
+  // Find unlinked managed sessions whose cwd matches the event's cwd
+  const candidates: ManagedSession[] = [];
+  for (const session of managedSessions.values()) {
+    // Skip sessions that already have a Claude session linked
+    if (session.claudeSessionId) continue;
+    if (!session.cwd) continue;
+
+    const normalizedSessionCwd = resolve(session.cwd);
+    if (normalizedSessionCwd === normalizedEventCwd) {
+      candidates.push(session);
+    }
+  }
+
+  if (candidates.length === 0) return undefined;
+
+  // If multiple candidates share the same cwd, prefer the most recently created
+  candidates.sort((a, b) => b.createdAt - a.createdAt);
+  const match = candidates[0];
+
+  // Link them
+  linkClaudeSession(claudeSessionId, match.id);
+  match.claudeSessionId = claudeSessionId;
+  log(
+    `Auto-linked Claude session ${claudeSessionId.slice(0, 8)} to "${match.name}" by CWD match (${normalizedEventCwd})`,
+  );
+
+  broadcastSessions();
+  saveSessions();
+  return match;
+}
+
 // ============================================================================
 // Event Processing
 // ============================================================================
@@ -1564,7 +1730,10 @@ function addEvent(event: ClaudeEvent) {
   }
 
   // Update managed session status based on event
-  const managedSession = findManagedSession(event.sessionId);
+  // First try existing link, then auto-link by CWD if unlinked
+  const managedSession =
+    findManagedSession(event.sessionId) ??
+    tryAutoLinkByCwd(event.sessionId, event.cwd);
   if (managedSession) {
     const prevStatus = managedSession.status;
     managedSession.lastActivity = Date.now(); // Use current time for accurate timeout tracking
@@ -1994,19 +2163,29 @@ function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
+    // Send Escape first (exits plan mode, input prompts, etc.), then Ctrl+C
     execFile(
       "tmux",
-      ["send-keys", "-t", TMUX_SESSION, "C-c"],
+      ["send-keys", "-t", TMUX_SESSION, "Escape"],
       EXEC_OPTIONS,
-      (error) => {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        if (error) {
-          log(`Cancel failed: ${error.message}`);
-          res.end(JSON.stringify({ ok: false, error: error.message }));
-        } else {
-          log(`Sent Ctrl+C to tmux session: ${TMUX_SESSION}`);
-          res.end(JSON.stringify({ ok: true }));
-        }
+      () => {
+        setTimeout(() => {
+          execFile(
+            "tmux",
+            ["send-keys", "-t", TMUX_SESSION, "C-c"],
+            EXEC_OPTIONS,
+            (error) => {
+              res.writeHead(200, { "Content-Type": "application/json" });
+              if (error) {
+                log(`Cancel failed: ${error.message}`);
+                res.end(JSON.stringify({ ok: false, error: error.message }));
+              } else {
+                log(`Sent Escape+Ctrl+C to tmux session: ${TMUX_SESSION}`);
+                res.end(JSON.stringify({ ok: true }));
+              }
+            },
+          );
+        }, 100);
       },
     );
     return;
@@ -2205,18 +2384,29 @@ function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
         return;
       }
 
+      // Send Escape first (exits plan mode, input prompts, etc.), then Ctrl+C
       execFile(
         "tmux",
-        ["send-keys", "-t", session.tmuxSession, "C-c"],
+        ["send-keys", "-t", session.tmuxSession, "Escape"],
         EXEC_OPTIONS,
-        (error) => {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          if (error) {
-            res.end(JSON.stringify({ ok: false, error: error.message }));
-          } else {
-            log(`Sent Ctrl+C to ${session.name}`);
-            res.end(JSON.stringify({ ok: true }));
-          }
+        () => {
+          // Follow up with Ctrl+C after a brief delay
+          setTimeout(() => {
+            execFile(
+              "tmux",
+              ["send-keys", "-t", session.tmuxSession, "C-c"],
+              EXEC_OPTIONS,
+              (error) => {
+                res.writeHead(200, { "Content-Type": "application/json" });
+                if (error) {
+                  res.end(JSON.stringify({ ok: false, error: error.message }));
+                } else {
+                  log(`Sent Escape+Ctrl+C to ${session.name}`);
+                  res.end(JSON.stringify({ ok: true }));
+                }
+              },
+            );
+          }, 100);
         },
       );
       return;
@@ -2413,6 +2603,16 @@ function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
                 }
               }
 
+              // Send Enter after delay to dismiss "Welcome back!" dialog
+              setTimeout(() => {
+                execFile(
+                  "tmux",
+                  ["send-keys", "-t", session.tmuxSession, "Enter"],
+                  EXEC_OPTIONS,
+                  () => {},
+                );
+              }, 3000);
+
               log(
                 `Restarted session: ${session.name} (${session.id.slice(0, 8)})`,
               );
@@ -2523,6 +2723,44 @@ function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
             }
           }
 
+          // Check if any members already belong to a group - merge into it
+          let existingGroup: ZoneGroup | undefined;
+          for (const sid of data.memberSessionIds) {
+            const g = findGroupForSession(sid);
+            if (g) {
+              existingGroup = g;
+              break;
+            }
+          }
+
+          if (existingGroup) {
+            // Merge: add non-members to the existing group
+            for (const sid of data.memberSessionIds) {
+              if (!existingGroup.memberSessionIds.includes(sid)) {
+                removeSessionFromGroup(sid);
+                existingGroup.memberSessionIds.push(sid);
+                const session = managedSessions.get(sid);
+                if (session) {
+                  session.groupId = existingGroup.id;
+                }
+              }
+            }
+            if (data.name) existingGroup.name = data.name;
+            if (data.color) existingGroup.color = data.color;
+
+            saveGroups();
+            saveSessions();
+            broadcastGroups();
+            broadcastSessions();
+
+            log(
+              `Merged into group "${existingGroup.name || existingGroup.id.slice(0, 8)}" - now ${existingGroup.memberSessionIds.length} members`,
+            );
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, group: existingGroup }));
+            return;
+          }
+
           // Remove members from existing groups first
           for (const sid of data.memberSessionIds) {
             removeSessionFromGroup(sid);
@@ -2531,6 +2769,7 @@ function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
           const group: ZoneGroup = {
             id: crypto.randomUUID(),
             name: data.name,
+            color: data.color,
             memberSessionIds: data.memberSessionIds,
             createdAt: Date.now(),
           };
@@ -2598,6 +2837,111 @@ function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
       log(`Dissolved group "${group.name || groupId.slice(0, 8)}"`);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    // PATCH /groups/:id - Update a group (add/remove members, rename, recolor)
+    if (req.method === "PATCH") {
+      if (!group) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "Group not found" }));
+        return;
+      }
+
+      collectRequestBody(req)
+        .then((body) => {
+          try {
+            const data = JSON.parse(body) as UpdateZoneGroupRequest;
+
+            // Update name
+            if (data.name !== undefined) {
+              group.name = data.name || undefined;
+            }
+
+            // Update color
+            if (data.color !== undefined) {
+              group.color = data.color || undefined;
+            }
+
+            // Add members
+            if (data.addMembers && Array.isArray(data.addMembers)) {
+              for (const sid of data.addMembers) {
+                if (!managedSessions.has(sid)) {
+                  res.writeHead(400, { "Content-Type": "application/json" });
+                  res.end(
+                    JSON.stringify({
+                      ok: false,
+                      error: `Session ${sid} not found`,
+                    }),
+                  );
+                  return;
+                }
+                // Remove from any prior group first
+                removeSessionFromGroup(sid);
+                if (!group.memberSessionIds.includes(sid)) {
+                  group.memberSessionIds.push(sid);
+                }
+                const session = managedSessions.get(sid);
+                if (session) {
+                  session.groupId = group.id;
+                }
+              }
+            }
+
+            // Remove members
+            if (data.removeMembers && Array.isArray(data.removeMembers)) {
+              for (const sid of data.removeMembers) {
+                group.memberSessionIds = group.memberSessionIds.filter(
+                  (id) => id !== sid,
+                );
+                const session = managedSessions.get(sid);
+                if (session) {
+                  session.groupId = undefined;
+                }
+              }
+
+              // Auto-dissolve if fewer than 2 members remain
+              if (group.memberSessionIds.length <= 1) {
+                // Clear groupId on remaining member
+                for (const sid of group.memberSessionIds) {
+                  const session = managedSessions.get(sid);
+                  if (session) {
+                    session.groupId = undefined;
+                  }
+                }
+                zoneGroups.delete(groupId);
+                saveGroups();
+                saveSessions();
+                broadcastGroups();
+                broadcastSessions();
+                log(
+                  `Auto-dissolved group "${group.name || groupId.slice(0, 8)}" (too few members)`,
+                );
+                res.writeHead(200, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ ok: true, dissolved: true }));
+                return;
+              }
+            }
+
+            saveGroups();
+            saveSessions();
+            broadcastGroups();
+            broadcastSessions();
+
+            log(
+              `Updated group "${group.name || groupId.slice(0, 8)}" - ${group.memberSessionIds.length} members`,
+            );
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, group }));
+          } catch (e) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: false, error: "Invalid JSON" }));
+          }
+        })
+        .catch(() => {
+          res.writeHead(413, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Request body too large" }));
+        });
       return;
     }
   }
@@ -2947,8 +3291,12 @@ function main() {
     // Start working timeout checking (every 10 seconds)
     setInterval(checkWorkingTimeout, WORKING_CHECK_INTERVAL_MS);
 
-    // Run initial health check to update session statuses
+    // Run initial health check, then auto-restart any offline sessions
     checkSessionHealth();
+    // checkSessionHealth is async (exec callback) — wait for it, then restart offline sessions
+    setTimeout(() => {
+      autoRestartOfflineSessions();
+    }, 2000);
   });
 }
 

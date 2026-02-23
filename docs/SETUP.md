@@ -1,33 +1,33 @@
-# Vibecraft Setup Guide
+# Vibecraft 安装指南
 
-Complete installation and troubleshooting guide for Vibecraft.
+完整的安装和故障排除指南。
 
-## What is Vibecraft?
+## 什么是 Vibecraft？
 
-Vibecraft visualizes Claude Code's activity in real-time as a 3D workshop. When Claude uses tools (Read, Edit, Bash, etc.), a character moves to corresponding workstations.
+Vibecraft 将 Claude Code 的活动实时可视化为 3D 工作坊。当 Claude 使用工具（Read、Edit、Bash 等）时，角色会移动到对应的工作站。
 
-**Two parts:**
-1. **Hooks** - Capture events from Claude Code
-2. **Server** - WebSocket server + 3D browser visualization
+**两个组成部分：**
+1. **Hook** — 捕获 Claude Code 的事件
+2. **服务器** — WebSocket 服务器 + 3D 浏览器可视化
 
 ```
 ┌─────────────────┐      hooks       ┌─────────────────┐
 │  Claude Code    │ ───────────────→ │  Vibecraft      │
-│  (your CLI)     │                  │  Server (:4003) │
+│  （你的 CLI）    │                  │  服务器 (:4003)  │
 └─────────────────┘                  └────────┬────────┘
                                               │
                                               ↓ WebSocket
                                      ┌─────────────────┐
-                                     │  Browser        │
-                                     │  (3D Scene)     │
+                                     │  浏览器          │
+                                     │  （3D 场景）      │
                                      └─────────────────┘
 ```
 
 ---
 
-## Quick Start (3 steps)
+## 快速开始（3 步）
 
-### Step 1: Install dependencies
+### 第 1 步：安装依赖
 
 ```bash
 # macOS
@@ -40,67 +40,67 @@ sudo apt install jq tmux
 pacman -S jq tmux
 ```
 
-### Step 2: Configure hooks
+### 第 2 步：配置 Hook
 
 ```bash
 npx vibecraft setup
 ```
 
-This automatically adds hooks to `~/.claude/settings.json`.
+这会自动将 hook 添加到 `~/.claude/settings.json`。
 
-### Step 3: Start server and use Claude
+### 第 3 步：启动服务器并使用 Claude
 
 ```bash
-# Terminal 1: Start Vibecraft server
+# 终端 1：启动 Vibecraft 服务器
 npx vibecraft
 
-# Terminal 2: Use Claude Code normally
+# 终端 2：正常使用 Claude Code
 claude
 ```
 
-Open http://localhost:4003 in your browser.
+在浏览器中打开 http://localhost:4003。
 
-**That's it!** Every time Claude uses a tool, you'll see it in the 3D visualization.
+**搞定！** 每当 Claude 使用工具时，你都会在 3D 可视化中看到它。
 
 ---
 
-## Prerequisites Explained
+## 前置依赖说明
 
-| Dependency | Required? | Purpose |
-|------------|-----------|---------|
-| **Node.js 18+** | Yes | Runs the server |
-| **jq** | Yes | JSON processing in hook scripts |
-| **tmux** | Optional | Session management, browser→Claude prompts |
+| 依赖 | 是否必需？ | 用途 |
+|------|-----------|------|
+| **Node.js 18+** | 是 | 运行服务器 |
+| **jq** | 是 | Hook 脚本中的 JSON 处理 |
+| **tmux** | 可选 | 会话管理，浏览器→Claude 发送 prompt |
 
-**Check if installed:**
+**检查是否已安装：**
 ```bash
-node --version   # Should be 18+
-jq --version     # Should output version
-tmux -V          # Should output version (optional)
+node --version   # 应该是 18+
+jq --version     # 应该输出版本号
+tmux -V          # 应该输出版本号（可选）
 ```
 
 ---
 
-## Hook Configuration Options
+## Hook 配置选项
 
-### Option A: Automatic (Recommended)
+### 方式 A：自动配置（推荐）
 
 ```bash
 npx vibecraft setup
 ```
 
-This:
-- Copies hook script to `~/.vibecraft/hooks/vibecraft-hook.sh`
-- Creates `~/.vibecraft/data/` directory
-- Configures all 8 hooks in `~/.claude/settings.json`
-- Backs up existing settings
-- Checks for jq/tmux
+这会：
+- 将 hook 脚本复制到 `~/.vibecraft/hooks/vibecraft-hook.sh`
+- 创建 `~/.vibecraft/data/` 目录
+- 在 `~/.claude/settings.json` 中配置全部 8 个 hook
+- 备份现有配置
+- 检查 jq/tmux 是否已安装
 
-**After setup, restart Claude Code for hooks to take effect.**
+**配置完成后，重启 Claude Code 使 hook 生效。**
 
-### Option B: Manual Configuration
+### 方式 B：手动配置
 
-If you prefer to configure hooks manually, add to `~/.claude/settings.json`:
+如果你偏好手动配置 hook，在 `~/.claude/settings.json` 中添加：
 
 ```json
 {
@@ -133,82 +133,82 @@ If you prefer to configure hooks manually, add to `~/.claude/settings.json`:
 }
 ```
 
-Replace `HOOK_PATH` with the output of:
+将 `HOOK_PATH` 替换为以下命令的输出：
 ```bash
 npx vibecraft --hook-path
 ```
 
-**Note:** You must also copy the hook script to a stable location and ensure `~/.vibecraft/data/` exists.
+**注意：** 你还需要将 hook 脚本复制到一个稳定位置，并确保 `~/.vibecraft/data/` 目录存在。
 
 ---
 
-## What "Agent Not Connected" Means
+## "Agent Not Connected" 的含义
 
-If you see this overlay in the browser:
+如果你在浏览器中看到此提示：
 
 ```
 ┌──────────────────────────────────┐
 │                                  │
 │     🔌 Agent Not Connected       │
 │                                  │
-│  Vibecraft needs a local agent   │
-│  running to receive events.      │
+│  Vibecraft 需要本地 agent        │
+│  运行以接收事件。                 │
 │                                  │
 │       [ npx vibecraft ]          │
 │                                  │
 └──────────────────────────────────┘
 ```
 
-**It means ONE of these:**
+**这意味着以下情况之一：**
 
-| Problem | Solution |
-|---------|----------|
-| Server not running | Run `npx vibecraft` in a terminal |
-| Wrong port | Check URL matches server port (default: 4003) |
-| Hooks not configured | Run `npx vibecraft setup` |
+| 问题 | 解决方案 |
+|------|---------|
+| 服务器未运行 | 在终端中运行 `npx vibecraft` |
+| 端口错误 | 检查 URL 是否匹配服务器端口（默认：4003） |
+| Hook 未配置 | 运行 `npx vibecraft setup` |
 
-**Quick test:**
+**快速测试：**
 ```bash
-# Check server is running
+# 检查服务器是否在运行
 curl http://localhost:4003/health
-# Should return: {"ok":true,...}
+# 应该返回：{"ok":true,...}
 ```
 
 ---
 
-## Sending Prompts from Browser
+## 从浏览器发送 Prompt
 
-To send prompts to Claude from the Vibecraft UI:
+要从 Vibecraft UI 向 Claude 发送 prompt：
 
-### Step 1: Run Claude in tmux
+### 第 1 步：在 tmux 中运行 Claude
 
 ```bash
-# Create named tmux session
+# 创建命名的 tmux 会话
 tmux new -s claude
 
-# Start Claude inside tmux
+# 在 tmux 中启动 Claude
 claude
 ```
 
-### Step 2: Use Vibecraft normally
+### 第 2 步：正常使用 Vibecraft
 
 ```bash
-# In another terminal
+# 在另一个终端中
 npx vibecraft
 ```
 
-### Step 3: Send prompts
+### 第 3 步：发送 prompt
 
-In the browser, type in the prompt field and click "Send" with "Send to tmux" checked.
+在浏览器中，在 prompt 输入框中输入内容，勾选"Send to tmux"后点击"Send"。
 
-**Note:** If you named your tmux session something other than `claude`:
+**注意：** 如果你的 tmux 会话名称不是 `claude`：
 ```bash
 VIBECRAFT_TMUX_SESSION=myname npx vibecraft
 ```
 
 ---
 
-## Common Issues
+## 常见问题
 
 ### "jq: command not found"
 
@@ -223,129 +223,129 @@ sudo apt install jq
 pacman -S jq
 ```
 
-### "Permission denied" on hook script
+### Hook 脚本"Permission denied"
 
 ```bash
 chmod +x $(npx vibecraft --hook-path)
 ```
 
-### Events not appearing
+### 事件不显示
 
-**1. Check server is running:**
+**1. 检查服务器是否在运行：**
 ```bash
 curl http://localhost:4003/health
 ```
 
-**2. Check hooks are configured:**
+**2. 检查 hook 是否已配置：**
 ```bash
 cat ~/.claude/settings.json | grep vibecraft
 ```
 
-**3. Restart Claude Code** (hooks load at startup)
+**3. 重启 Claude Code**（hook 在启动时加载）
 
 ### "Can't connect to tmux session"
 
 ```bash
-# List sessions
+# 列出会话
 tmux list-sessions
 
-# Default session name is 'claude'
-# If different, set environment variable:
+# 默认会话名称是 'claude'
+# 如果不同，设置环境变量：
 VIBECRAFT_TMUX_SESSION=yourname npx vibecraft
 ```
 
-### Events appearing twice
+### 事件重复出现
 
-You likely have duplicate hooks configured. Check `~/.claude/settings.json` for duplicate vibecraft-hook entries and remove extras. Then run `npx vibecraft setup` to ensure correct configuration.
+你可能配置了重复的 hook。检查 `~/.claude/settings.json` 中是否有重复的 vibecraft-hook 条目并删除多余的。然后运行 `npx vibecraft setup` 确保配置正确。
 
-### Browser shows "Disconnected"
+### 浏览器显示"Disconnected"
 
-- Refresh the page
-- Check if server is still running
-- Check browser console for errors
+- 刷新页面
+- 检查服务器是否仍在运行
+- 查看浏览器控制台的错误信息
 
 ---
 
-## Voice Input (Optional)
+## 语音输入（可选）
 
-For speech-to-text prompts:
+如需语音转文字 prompt 功能：
 
-1. Sign up at [deepgram.com](https://deepgram.com)
-2. Create an API key
-3. Add to your `.env` file:
+1. 在 [deepgram.com](https://deepgram.com) 注册
+2. 创建 API 密钥
+3. 添加到你的 `.env` 文件：
    ```bash
    DEEPGRAM_API_KEY=your_api_key_here
    ```
-4. Restart the server
-5. Press `Alt+S` or click the microphone icon
+4. 重启服务器
+5. 按 `Alt+S` 或点击麦克风图标
 
 ---
 
-## Environment Variables
+## 环境变量
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VIBECRAFT_PORT` | `4003` | Server port |
-| `VIBECRAFT_TMUX_SESSION` | `claude` | tmux session for prompts |
-| `VIBECRAFT_DEBUG` | `false` | Verbose logging |
-| `DEEPGRAM_API_KEY` | (none) | Deepgram API key for voice input |
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `VIBECRAFT_PORT` | `4003` | 服务器端口 |
+| `VIBECRAFT_TMUX_SESSION` | `claude` | 用于发送 prompt 的 tmux 会话 |
+| `VIBECRAFT_DEBUG` | `false` | 详细日志 |
+| `DEEPGRAM_API_KEY` | （无） | Deepgram 语音输入 API 密钥 |
 
-Example:
+示例：
 ```bash
 VIBECRAFT_PORT=4005 VIBECRAFT_DEBUG=true npx vibecraft
 ```
 
 ---
 
-## Development Setup
+## 开发环境搭建
 
-For contributing or modifying:
+如需贡献代码或修改：
 
 ```bash
-# Clone
+# 克隆
 git clone https://github.com/nearcyan/vibecraft
 cd vibecraft
 
-# Install dependencies
+# 安装依赖
 npm install
 
-# Start dev servers (frontend :4002, API :4003)
+# 启动开发服务器（前端 :4002，API :4003）
 npm run dev
 
-# Open browser
+# 打开浏览器
 open http://localhost:4002
 ```
 
-**Note:** In dev mode, frontend and API run on different ports. In production (`npx vibecraft`), everything runs on port 4003.
+**注意：** 开发模式下，前端和 API 运行在不同端口。生产环境（`npx vibecraft`）一切都在 4003 端口运行。
 
 ---
 
-## Uninstalling
+## 卸载
 
-To remove Vibecraft hooks (keeps your event data):
+移除 Vibecraft hook（保留事件数据）：
 
 ```bash
 npx vibecraft uninstall
 ```
 
-This:
-- Removes vibecraft hooks from `~/.claude/settings.json`
-- Removes the hook script from `~/.vibecraft/hooks/`
-- **Keeps** your data in `~/.vibecraft/data/`
-- Does NOT affect other hooks you may have configured
+这会：
+- 从 `~/.claude/settings.json` 中移除 vibecraft hook
+- 从 `~/.vibecraft/hooks/` 中移除 hook 脚本
+- **保留**你在 `~/.vibecraft/data/` 中的数据
+- 不影响你可能配置的其他 hook
 
-To completely remove all data:
+要完全删除所有数据：
 
 ```bash
 rm -rf ~/.vibecraft
 ```
 
-**Restart Claude Code after uninstalling for changes to take effect.**
+**卸载后重启 Claude Code 使更改生效。**
 
 ---
 
-## Getting Help
+## 获取帮助
 
 - **GitHub Issues:** https://github.com/nearcyan/vibecraft/issues
-- **Technical Docs:** See [CLAUDE.md](../CLAUDE.md)
-- **Orchestration:** See [ORCHESTRATION.md](./ORCHESTRATION.md)
+- **技术文档：** 参见 [CLAUDE.md](../CLAUDE.md)
+- **编排系统：** 参见 [ORCHESTRATION.md](./ORCHESTRATION.md)

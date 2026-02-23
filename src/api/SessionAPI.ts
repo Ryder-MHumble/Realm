@@ -240,6 +240,31 @@ export function createSessionAPI(apiUrl: string) {
     },
 
     /**
+     * Update a zone group (add/remove members, rename, recolor)
+     */
+    async updateGroup(
+      groupId: string,
+      updates: {
+        name?: string;
+        addMembers?: string[];
+        removeMembers?: string[];
+        color?: string;
+      },
+    ): Promise<SimpleResponse> {
+      try {
+        const response = await fetch(`${apiUrl}/groups/${groupId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+        return await response.json();
+      } catch (e) {
+        console.error("Error updating group:", e);
+        return { ok: false, error: "Network error" };
+      }
+    },
+
+    /**
      * Dissolve a zone group
      */
     async deleteGroup(groupId: string): Promise<SimpleResponse> {

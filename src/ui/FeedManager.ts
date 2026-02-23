@@ -9,6 +9,7 @@
  */
 
 import { getToolIcon } from "../utils/ToolUtils";
+import { t } from "../i18n";
 import type {
   ClaudeEvent,
   PreToolUseEvent,
@@ -93,6 +94,13 @@ export class FeedManager {
   }
 
   /**
+   * Get current filter session ID
+   */
+  getFilter(): string | null {
+    return this.activeFilter;
+  }
+
+  /**
    * Filter feed items by session ID
    */
   setFilter(sessionId: string | null): void {
@@ -107,17 +115,12 @@ export class FeedManager {
       // Show all if no filter, or show matching session
       const shouldShow = sessionId === null || itemSession === sessionId;
 
-      if (!shouldShow && itemEl.style.display !== "none") {
-        // Animate out then hide
-        itemEl.classList.add("exiting");
-        itemEl.addEventListener(
-          "animationend",
-          () => {
-            itemEl.style.display = "none";
-            itemEl.classList.remove("exiting");
-          },
-          { once: true },
-        );
+      if (!shouldShow) {
+        // Hide immediately - animation-based hiding was unreliable because
+        // .tool-pending and .thinking-indicator have same-specificity animations
+        // that override .exiting's slideOutDown, causing animationend to never fire
+        itemEl.style.display = "none";
+        itemEl.classList.remove("exiting");
       } else if (shouldShow && itemEl.style.display === "none") {
         // Show with entrance animation
         itemEl.style.display = "";
@@ -125,8 +128,6 @@ export class FeedManager {
         // Force reflow to restart animation
         void itemEl.offsetHeight;
         itemEl.style.animation = "";
-      } else if (!shouldShow) {
-        itemEl.style.display = "none";
       }
     });
 
@@ -192,7 +193,7 @@ export class FeedManager {
     item.innerHTML = `
       <div class="feed-item-header">
         <div class="feed-item-icon thinking-icon">🤔</div>
-        <div class="feed-item-title">Claude is thinking</div>
+        <div class="feed-item-title">${t("feed.thinking")}</div>
         <div class="thinking-dots"><span>.</span><span>.</span><span>.</span></div>
       </div>
     `;
@@ -268,21 +269,27 @@ export class FeedManager {
         const e = event as { prompt?: string; timestamp: number };
         const promptText = e.prompt ?? "";
 
-        // Skip duplicate prompts
-        const lastPrompt = this.feedEl.querySelector(
-          ".feed-item.user-prompt:last-of-type",
-        ) as HTMLElement | null;
+        // Skip duplicate prompts (same session + same text)
+        const allPrompts = this.feedEl.querySelectorAll(
+          ".feed-item.user-prompt",
+        );
+        const lastPrompt =
+          allPrompts.length > 0
+            ? (allPrompts[allPrompts.length - 1] as HTMLElement)
+            : null;
         if (lastPrompt) {
           const lastText =
             lastPrompt.querySelector(".prompt-text")?.textContent ?? "";
-          if (promptText === lastText) return;
+          const lastSession = lastPrompt.dataset.sessionId;
+          if (promptText === lastText && lastSession === event.sessionId)
+            return;
         }
 
         item.classList.add("user-prompt");
         item.innerHTML = `
           <div class="feed-item-header">
             <div class="feed-item-icon">💬</div>
-            <div class="feed-item-title">You</div>
+            <div class="feed-item-title">${t("feed.you")}</div>
             <div class="feed-item-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
           </div>
           <div class="feed-item-content prompt-text">${escapeHtml(promptText)}</div>
@@ -322,9 +329,9 @@ export class FeedManager {
         } else if (command) {
           preview = `<div class="feed-item-code">${escapeHtml(command)}</div>`;
         } else if (pattern) {
-          preview = `<div class="feed-item-file">Pattern: ${escapeHtml(pattern)}</div>`;
+          preview = `<div class="feed-item-file">${t("feed.pattern", { pattern: escapeHtml(pattern) })}</div>`;
         } else if (query) {
-          preview = `<div class="feed-item-file">Query: ${escapeHtml(query.slice(0, 100))}</div>`;
+          preview = `<div class="feed-item-file">${t("feed.query", { query: escapeHtml(query.slice(0, 100)) })}</div>`;
         }
 
         let details = "";
@@ -335,7 +342,7 @@ export class FeedManager {
             <div class="feed-item-details collapsed" id="details-${e.toolUseId}">
               <div class="feed-item-code">${escapeHtml(truncated)}</div>
             </div>
-            <div class="expand-toggle" data-target="details-${e.toolUseId}">▶ Show content</div>
+            <div class="expand-toggle" data-target="details-${e.toolUseId}">▶ ${t("feed.showContent")}</div>
           `;
         }
 
@@ -476,10 +483,10 @@ export class FeedManager {
           item.innerHTML = `
             <div class="feed-item-header">
               <div class="feed-item-icon">🤖</div>
-              <div class="feed-item-title">Claude</div>
+              <div class="feed-item-title">${t("feed.claude")}</div>
               <div class="feed-item-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
             </div>
-            <div class="feed-item-content assistant-text">${renderMarkdown(displayResponse)}${isLong ? '<span class="show-more">... [show more - Alt+E]</span>' : ""}</div>
+            <div class="feed-item-content assistant-text">${renderMarkdown(displayResponse)}${isLong ? `<span class="show-more">${t("feed.showMore")}</span>` : ""}</div>
           `;
           // Add click handler for "show more"
           if (isLong) {
@@ -499,7 +506,7 @@ export class FeedManager {
           item.innerHTML = `
             <div class="feed-item-header">
               <div class="feed-item-icon">🏁</div>
-              <div class="feed-item-title">Stopped</div>
+              <div class="feed-item-title">${t("feed.stopped")}</div>
               <div class="feed-item-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
             </div>
           `;
@@ -553,8 +560,8 @@ export class FeedManager {
         if (details) {
           const isCollapsed = details.classList.toggle("collapsed");
           toggle.textContent = isCollapsed
-            ? "▶ Show content"
-            : "▼ Hide content";
+            ? `▶ ${t("feed.showContent")}`
+            : `▼ ${t("feed.hideContent")}`;
         }
       });
     });
@@ -594,12 +601,12 @@ export class FeedManager {
  */
 export function formatTokens(tokens: number): string {
   if (tokens >= 1_000_000) {
-    return `${(tokens / 1_000_000).toFixed(1)}M tok`;
+    return t("time.tokM", { n: (tokens / 1_000_000).toFixed(1) });
   }
   if (tokens >= 1_000) {
-    return `${(tokens / 1_000).toFixed(1)}k tok`;
+    return t("time.tokK", { n: (tokens / 1_000).toFixed(1) });
   }
-  return `${tokens} tok`;
+  return t("time.tok", { n: tokens });
 }
 
 /**
@@ -607,14 +614,14 @@ export function formatTokens(tokens: number): string {
  */
 export function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 30) return "just now";
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 30) return t("time.justNow");
+  if (seconds < 60) return t("time.secondsAgo", { n: seconds });
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t("time.minutesAgo", { n: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("time.hoursAgo", { n: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t("time.daysAgo", { n: days });
 }
 
 /**

@@ -1,32 +1,56 @@
-/* Prompt input and voice control */
+/* Command bar and prompt input */
 
-/* Prompt input at bottom of feed */
-#prompt-container {
-  padding: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.3);
+/* ===== Bottom Command Bar ===== */
+#command-bar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 960px);
+  z-index: 500;
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  padding: 10px 16px;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+.command-bar-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 6px 12px;
+  background: rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+#prompt-section {
+  flex: 1;
+  min-width: 0;
+  position: relative;
 }
 
 #prompt-form {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 #prompt-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 9px 14px;
   color: #fff;
-  font-size: 14px;
+  font-size: 13px;
   font-family: inherit;
   outline: none;
   resize: none;
-  min-height: 44px;
-  max-height: 200px;
+  min-height: 36px;
+  max-height: 120px;
   overflow-y: auto;
   line-height: 1.4;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 #prompt-input:focus {
@@ -56,59 +80,195 @@
 }
 
 #prompt-submit, #prompt-cancel {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 7px 14px;
   font-weight: 500;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
   display: flex;
   align-items: center;
   gap: 5px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
 }
 
 #prompt-submit {
-  color: rgba(255, 255, 255, 0.8);
+  background: rgba(167, 139, 250, 0.2);
+  border-color: rgba(167, 139, 250, 0.3);
+  color: #c4b5fd;
 }
 
 #prompt-submit:hover {
-  background: rgba(167, 139, 250, 0.15);
-  border-color: rgba(167, 139, 250, 0.3);
-  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.3);
+  border-color: rgba(167, 139, 250, 0.45);
+  color: #ddd6fe;
 }
 
 #prompt-submit:disabled {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.03);
   border-color: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.2);
   cursor: not-allowed;
 }
 
 #prompt-cancel {
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.15);
+  color: rgba(248, 113, 113, 0.8);
 }
 
 #prompt-cancel:hover {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
   color: #f87171;
-}
-
-.btn-icon {
-  font-size: 11px;
-  opacity: 0.9;
 }
 
 #prompt-options {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Mode Selector */
+#mode-selector {
+  position: relative;
+}
+
+#mode-selector-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+#mode-selector-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+#mode-selector-btn.open {
+  background: rgba(167, 139, 250, 0.12);
+  border-color: rgba(167, 139, 250, 0.3);
+  color: #a78bfa;
+}
+
+#mode-selector-icon {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+}
+
+.mode-chevron {
+  font-size: 9px;
+  opacity: 0.5;
+  transition: transform 0.15s ease;
+}
+
+#mode-selector-btn.open .mode-chevron {
+  transform: rotate(180deg);
+}
+
+/* Mode colors on the button */
+#mode-selector-btn.mode-auto-edit { border-color: rgba(74, 222, 128, 0.25); color: rgba(74, 222, 128, 0.8); }
+#mode-selector-btn.mode-plan { border-color: rgba(167, 139, 250, 0.25); color: rgba(167, 139, 250, 0.8); }
+#mode-selector-btn.mode-ask-before-edit { border-color: rgba(251, 191, 36, 0.25); color: rgba(251, 191, 36, 0.8); }
+
+/* Dropdown */
+#mode-selector-dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  background: #1a1a1e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  animation: slideInUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#mode-selector-dropdown.hidden {
+  display: none;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  text-align: left;
+}
+
+.mode-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mode-option.active {
+  background: rgba(167, 139, 250, 0.1);
+}
+
+.mode-option-icon {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.mode-option-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.mode-option-label {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.mode-option-desc {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.mode-check {
+  font-size: 12px;
+  color: #a78bfa;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.mode-option.active .mode-check {
+  opacity: 1;
+}
+
+/* No session selected - disabled state */
+#mode-selector.disabled #mode-selector-btn {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
 }
 
 .send-toggle {
@@ -176,8 +336,8 @@
 #voice-transcript {
   position: absolute;
   bottom: 100%;
-  left: 16px;
-  right: 16px;
+  left: 0;
+  right: 0;
   margin-bottom: 8px;
   padding: 10px 14px;
   background: rgba(239, 68, 68, 0.1);

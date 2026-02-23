@@ -1,87 +1,123 @@
-# Vibecraft Design Principles
+# Vibecraft 设计原则
 
-Guidelines for creating a fluid, interactive experience.
+创造流畅交互体验的设计指南。
 
-## Core Philosophy
+## 核心理念
 
-**Every interaction should feel alive.** The user should never wonder "did that work?" - the system responds immediately with visual and audio feedback.
+**每一次交互都应该有生命力。** 用户永远不应该疑惑"这操作生效了吗？"——系统应立即通过视觉和音频反馈做出响应。
 
-## Feedback Layers
+## 反馈层级
 
-Good interactions have multiple feedback layers that fire simultaneously:
+好的交互应有多层反馈同时触发：
 
-1. **Immediate visual** - hover highlights, button states, cursor changes
-2. **Animation** - ripples, pulses, transitions
-3. **Audio** - subtle SFX confirming actions
-4. **State change** - the actual result of the action
+1. **即时视觉** — 悬停高亮、按钮状态、光标变化
+2. **动画** — 涟漪、脉冲、过渡效果
+3. **音频** — 微妙的音效确认操作
+4. **状态变化** — 操作的实际结果
 
-Example: Clicking a hex cell triggers:
-- Expanding ring at click point (immediate)
-- Hex outline pulse (spatial confirmation)
-- Ripple spreading outward (satisfying animation)
-- Focus sound effect (audio confirmation)
-- Camera movement (state change)
+示例：点击一个六角格会触发：
+- 点击处扩散的圆环（即时反馈）
+- 六角格轮廓脉冲（空间确认）
+- 向外扩散的涟漪（满足感动画）
+- 聚焦音效（音频确认）
+- 镜头移动（状态变化）
 
-## Hover States
+## 悬停状态
 
-Always show what's interactive:
-- Hex grid highlights on hover
-- Buttons change on hover
-- Cursor indicates clickable areas
+始终展示哪些元素可交互：
+- 六角格网格悬停时高亮
+- 按钮悬停时变化
+- 光标指示可点击区域
 
-**Principle:** If it's clickable, it should react to hover.
+**原则：** 如果可以点击，就应该对悬停做出反应。
 
-## Sound Design
+## 声音设计
 
-- **Tool sounds** - each tool has a distinct audio signature
-- **State sounds** - focus, success, error, notification
-- **Subtle volume** - sounds inform, not annoy
+- **工具音效** — 每种工具有独特的音频特征
+- **状态音效** — 聚焦、成功、错误、通知
+- **音量适度** — 音效用于提示，而非打扰
 
-**Principle:** Sound confirms without demanding attention.
+**原则：** 声音在不抢夺注意力的前提下提供确认。
 
-## Animation Timing
+## 动画时间
 
-- **Instant feedback** - hover/click response: 0-50ms
-- **Quick transitions** - UI changes: 100-200ms
-- **Satisfying animations** - ripples, pulses: 300-800ms
-- **Camera movements** - smooth easing: 500-1000ms
+- **即时反馈** — 悬停/点击响应：0-50ms
+- **快速过渡** — UI 变化：100-200ms
+- **满足感动画** — 涟漪、脉冲：300-800ms
+- **镜头移动** — 平滑缓动：500-1000ms
 
-**Principle:** Fast enough to feel responsive, slow enough to perceive.
+**原则：** 足够快以感觉灵敏，足够慢以被感知。
 
-## Color & Contrast
+## 色彩与对比度
 
-- **Consistent palette** - ice/cyan theme throughout
-- **Hierarchy through brightness** - active elements brighter
-- **Subtle backgrounds** - don't compete with content
+- **一致的调色板** — 全局使用冰蓝/青色主题
+- **亮度层级** — 活跃元素更明亮
+- **柔和背景** — 不与内容争夺注意力
 
-## Attention to Detail
+## 部门分组视觉设计
 
-Small things that matter:
-- Particles float gently, not randomly
-- Hex grid lines are perfectly aligned
-- Click ripples spread in hex pattern, not circles
-- Zone floors have subtle emissive glow
-- Status indicators pulse when active
+多个会话可组成"部门"，在 3D 场景和侧边栏中统一展示。
 
-**Principle:** Polish compounds. 10 small details > 1 big feature.
+### 3D 边界
 
-## Performance Considerations
+- **凸包轮廓**：部门成员的 zone 位置计算凸包（Andrew's monotone chain），向外扩展 ~0.6 六角半径，绘制闭合轮廓线
+- **双线渲染**：外层发光线（8% 不透明度，线宽 3）+ 内层实线（40% 不透明度，线宽 2）
+- **胶囊退化**：仅 2 个成员时，凸包退化为线段，自动生成胶囊/药丸形状
+- **地面染色**：凸包区域填充半透明网格（ShapeGeometry，4% 不透明度），标识部门领地
+- **质心标签**：部门名称悬浮于所有成员的几何质心上方，大写字母，带部门颜色
 
-Fancy effects must not lag:
-- Merged geometry for many objects (hex grid)
-- Object pooling for particles
-- Shader-based effects over spawning objects
-- LOD for distant elements
+### 侧边栏分组
 
-## Testing Feel
+- **可折叠头部**：蓝色调背景，显示部门名称（大写）、成员数、工作中数量
+- **缩进成员**：组内会话卡片左缩进 14px，带蓝色左边框
+- **悬停操作**：头部悬停显示重命名和解散按钮
+- **双击聚焦**：双击部门头部，镜头飞到部门质心
+- **折叠记忆**：折叠状态持久化到 localStorage
 
-Ask these questions:
-- Does hovering feel responsive?
-- Does clicking feel satisfying?
-- Is it clear what's interactive?
-- Does the audio enhance or annoy?
-- Do animations feel smooth or janky?
+### 视觉层级
+
+```text
+未分组会话          → 平铺排列
+├─ 部门 A（头部）   → 蓝色调背景，可折叠
+│  ├─ 会话 1       → 缩进 + 左边框
+│  └─ 会话 2       → 缩进 + 左边框
+├─ 部门 B（头部）   → 蓝色调背景
+│  ├─ 会话 3
+│  ├─ 会话 4
+│  └─ 会话 5
+└─ 未分组会话       → 在分隔线之后
+```
+
+## 细节打磨
+
+重要的小细节：
+- 粒子轻柔漂浮，而非随机运动
+- 六角格网格线完美对齐
+- 点击涟漪以六角形扩散，而非圆形
+- 区域地面有微妙的自发光
+- 状态指示器在活跃时脉冲闪烁
+- 部门凸包轮廓平滑包围成员 zone
+- 地面染色标识部门领地范围
+
+**原则：** 打磨会累积。10 个小细节 > 1 个大功能。
+
+## 性能考量
+
+炫酷效果不能导致卡顿：
+- 多对象合并几何体（六角格网格）
+- 粒子对象池
+- 基于着色器的效果优于生成新对象
+- 远处元素使用 LOD（细节层级）
+
+## 体验测试
+
+问自己这些问题：
+- 悬停反馈是否灵敏？
+- 点击是否有满足感？
+- 可交互元素是否清晰可辨？
+- 音效是增强了体验还是令人烦躁？
+- 动画是否流畅而非卡顿？
 
 ---
 
-*"Juice" is the cumulative effect of many small feedback systems working together. No single element creates it - the combination does.*
+*"Juice"（活力感）是许多小型反馈系统协同运作的累积效果。没有任何单一元素能创造它——是组合产生了这种感觉。*

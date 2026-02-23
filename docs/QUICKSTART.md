@@ -1,31 +1,31 @@
-# Vibecraft Quick Start
+# Vibecraft 快速开始
 
-## TL;DR
+## 太长不看版
 
 ```bash
-# Install deps (macOS)
+# 安装依赖（macOS）
 brew install jq tmux
 
-# Configure hooks (once)
+# 配置 hook（仅需一次）
 npx vibecraft setup
 
-# Run
+# 运行
 npx vibecraft
 ```
 
-Open http://localhost:4003 and use Claude normally.
+打开 http://localhost:4003，然后正常使用 Claude 即可。
 
 ---
 
-## Not working?
+## 遇到问题？
 
-| Problem | Fix |
-|---------|-----|
-| "jq not found" | `brew install jq` or `apt install jq` |
-| "Agent Not Connected" | Is `npx vibecraft` running? Did you run `setup`? |
-| No events | Restart Claude Code after setup |
-| Wrong port | Default is 4003, check your URL |
+| 问题 | 解决方案 |
+|------|---------|
+| "jq not found" | `brew install jq` 或 `apt install jq` |
+| "Agent Not Connected" | `npx vibecraft` 是否在运行？是否已执行 `setup`？ |
+| 没有事件显示 | 配置完成后重启 Claude Code |
+| 端口错误 | 默认端口为 4003，检查你的 URL |
 
-## Full guide
+## 完整指南
 
-See [SETUP.md](./SETUP.md)
+请查看 [SETUP.md](./SETUP.md)
