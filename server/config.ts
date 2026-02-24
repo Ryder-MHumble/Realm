@@ -145,7 +145,7 @@ export function loadConfig(): ServerConfig {
       ),
     ),
     groupsFile: resolve(expandHome("~/.vibecraft/data/groups.json")),
-    workingTimeoutMs: 120_000,
+    workingTimeoutMs: 300_000,
     maxBodySize: 1024 * 1024,
     workingCheckIntervalMs: 10_000,
     uploadsDir: resolve(expandHome("~/.vibecraft/uploads")),

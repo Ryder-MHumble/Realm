@@ -68,6 +68,12 @@ export class PermissionManager {
     }
   }
 
+  /** Clean up all state for a deleted session */
+  clearSession(sessionId: string): void {
+    this.pendingPermissions.delete(sessionId);
+    this.bypassWarningHandled.delete(sessionId);
+  }
+
   /** Send a permission response to a session */
   sendPermissionResponse(sessionId: string, optionNumber: string): boolean {
     // Validate it's a number
@@ -128,9 +134,7 @@ export class PermissionManager {
       { ...getExecOptions(), maxBuffer: 1024 * 1024 },
       (error, stdout) => {
         if (error) {
-          debug(
-            `Permission poll failed for ${tmuxSession}: ${error.message}`,
-          );
+          debug(`Permission poll failed for ${tmuxSession}: ${error.message}`);
           return;
         }
 

@@ -103,6 +103,9 @@ function main() {
   sessionManager.setGroupRemover((id) =>
     groupsManager.removeSessionFromGroup(id),
   );
+  sessionManager.setPermissionCleaner((id) =>
+    permissionManager.clearSession(id),
+  );
 
   // Events → Sessions
   eventProcessor.setEventHandler((event) => sessionManager.handleEvent(event));

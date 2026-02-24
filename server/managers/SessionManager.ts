@@ -47,6 +47,7 @@ export class SessionManager {
 
   private broadcastFn: ((msg: ServerMessage) => void) | null = null;
   private groupRemover: ((sessionId: string) => void) | null = null;
+  private permissionCleaner: ((sessionId: string) => void) | null = null;
 
   constructor(deps: {
     sessionsFile: string;
@@ -70,6 +71,10 @@ export class SessionManager {
 
   setGroupRemover(fn: (sessionId: string) => void): void {
     this.groupRemover = fn;
+  }
+
+  setPermissionCleaner(fn: (sessionId: string) => void): void {
+    this.permissionCleaner = fn;
   }
 
   // ============================================================================
@@ -257,6 +262,7 @@ export class SessionManager {
               this.managedSessions.delete(id);
               this.gitStatusManager.untrack(id);
               this.groupRemover?.(id);
+              this.permissionCleaner?.(id);
               log(
                 `Deleted ${session.agentType} session: ${session.name} (${id.slice(0, 8)})`,
               );
@@ -295,6 +301,7 @@ export class SessionManager {
             }
           }
           this.groupRemover?.(id);
+          this.permissionCleaner?.(id);
 
           log(`Deleted session: ${session.name} (${id.slice(0, 8)})`);
           this.broadcastSessions();

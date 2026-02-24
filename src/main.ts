@@ -543,6 +543,19 @@ async function createManagedSession(
   agentType?: import("../shared/types").AgentType,
   agentConfig?: Record<string, unknown>,
 ): Promise<void> {
+  // Pre-store hint position and pending zone ID BEFORE the API call.
+  // The server broadcasts sessions via WebSocket before the HTTP response returns,
+  // so the WebSocket handler may create the zone before we get the response.
+  // By pre-storing with the user-provided name, the WebSocket handler can find the hint.
+  if (name) {
+    if (hintPosition) {
+      pendingZoneHints.set(name, hintPosition);
+    }
+    if (pendingZoneId) {
+      pendingZonesToCleanup.set(name, pendingZoneId);
+    }
+  }
+
   const data = await sessionAPI.createSession(
     name,
     cwd,
@@ -555,6 +568,11 @@ async function createManagedSession(
 
   if (!data.ok) {
     console.error("Failed to create session:", data.error);
+    // Clean up pre-stored entries on failure
+    if (name) {
+      pendingZoneHints.delete(name);
+      pendingZonesToCleanup.delete(name);
+    }
     // Show offline banner if not connected, otherwise show alert
     if (!state.client?.isConnected) {
       showOfflineBanner();
@@ -568,20 +586,36 @@ async function createManagedSession(
     return;
   }
 
-  // Store hint position using the ACTUAL name from server response
-  // Server auto-generates "Claude N" if no name provided, so we must use its name
-  // Also store pending zone ID so we can remove it when real zone appears
+  // Re-key hint data if server used a different name than what we pre-stored
   const actualName = data.session?.name;
   if (actualName) {
-    if (hintPosition) {
-      pendingZoneHints.set(actualName, hintPosition);
+    if (name && name !== actualName) {
+      // Server changed the name — move pre-stored entries to actual name
+      const existingHint = pendingZoneHints.get(name);
+      if (existingHint) {
+        pendingZoneHints.delete(name);
+        pendingZoneHints.set(actualName, existingHint);
+      }
+      const existingPzId = pendingZonesToCleanup.get(name);
+      if (existingPzId) {
+        pendingZonesToCleanup.delete(name);
+        pendingZonesToCleanup.set(actualName, existingPzId);
+      }
+    } else if (!name) {
+      // No name was provided, server auto-generated one — store now
+      // (race condition may still occur in this case)
+      if (hintPosition) {
+        pendingZoneHints.set(actualName, hintPosition);
+      }
+      if (pendingZoneId) {
+        pendingZonesToCleanup.set(actualName, pendingZoneId);
+      }
     }
-    if (pendingZoneId) {
-      pendingZonesToCleanup.set(actualName, pendingZoneId);
 
-      // Handle race condition: the WebSocket broadcast may have already
-      // created the zone before this HTTP response returned. If so,
-      // clean up the pending zone immediately to prevent the 30s timeout.
+    // Handle race condition: the WebSocket broadcast may have already
+    // created the zone before this HTTP response returned. If so,
+    // clean up the pending zone immediately to prevent the 30s timeout.
+    if (pendingZoneId) {
       const zoneId =
         data.session?.claudeSessionId || `managed:${data.session?.id}`;
       if (state.scene && state.scene.zones.has(zoneId)) {
