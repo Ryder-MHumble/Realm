@@ -839,35 +839,73 @@
   position: fixed;
   right: 16px;
   bottom: 80px;
-  width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: rgba(10, 10, 15, 0.85);
+  padding: 0 14px 0 12px;
+  border-radius: 20px;
+  background: rgba(10, 10, 15, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(167, 139, 250, 0.25);
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
   cursor: pointer;
   z-index: 450;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3),
+              0 0 12px rgba(167, 139, 250, 0.08);
+  animation: feed-toggle-hint 3s ease-in-out 2s 3;
+}
+
+@keyframes feed-toggle-hint {
+  0%, 100% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 12px rgba(167, 139, 250, 0.08); }
+  50% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 20px rgba(167, 139, 250, 0.25); }
 }
 
 .feed-toggle-float:hover {
-  background: rgba(167, 139, 250, 0.12);
-  border-color: rgba(167, 139, 250, 0.3);
-  transform: scale(1.08);
+  background: rgba(167, 139, 250, 0.15);
+  border-color: rgba(167, 139, 250, 0.4);
+  transform: scale(1.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3),
+              0 0 16px rgba(167, 139, 250, 0.2);
 }
 
 .feed-toggle-float.active {
-  background: rgba(167, 139, 250, 0.12);
-  border-color: rgba(167, 139, 250, 0.3);
+  background: rgba(167, 139, 250, 0.15);
+  border-color: rgba(167, 139, 250, 0.35);
 }
 
 .feed-toggle-float .feed-toggle-icon {
-  font-size: 16px;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.feed-toggle-float .feed-toggle-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.feed-toggle-float:hover .feed-toggle-label {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.feed-toggle-float .feed-toggle-kbd {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 2px;
+}
+
+.feed-toggle-float:hover .feed-toggle-kbd {
+  color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* Legacy feed toggle (hidden) */

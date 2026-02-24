@@ -450,29 +450,29 @@
   color: #fff;
 }
 
-/* Draw Mode Palette */
+/* Draw Mode Palette — positioned above command bar */
 #draw-palette {
-  position: absolute;
-  bottom: 110px;
-  right: 12px;
+  position: fixed;
+  bottom: 140px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(34, 211, 238, 0.3);
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px 12px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   opacity: 0;
-  transform: translateY(10px);
   transition: opacity 0.2s, transform 0.2s;
   pointer-events: none;
-  z-index: 100;
+  z-index: 510;
 }
 
 #draw-palette.visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateX(-50%) translateY(0);
   pointer-events: auto;
 }
 
@@ -512,6 +512,15 @@
   color: #fff;
 }
 
+/* Palette group separator */
+.draw-separator {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
 /* Eraser button */
 .draw-eraser-btn {
   width: 36px;
@@ -525,7 +534,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 8px;
 }
 
 .draw-eraser-btn:hover {
@@ -561,7 +569,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 8px;
 }
 
 .draw-clear-btn:hover {
@@ -583,9 +590,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: 12px;
-  padding-left: 12px;
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .draw-brush-btn {
@@ -634,7 +638,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 8px;
 }
 
 .draw-3d-toggle:hover {
