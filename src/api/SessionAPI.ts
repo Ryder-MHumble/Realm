@@ -5,7 +5,13 @@
  * UI logic and state updates are handled by the caller (main.ts).
  */
 
-import type { ClaudeMode, ManagedSession } from "../../shared/types";
+import type {
+  AgentType,
+  AgentTypeConfig,
+  ClaudeMode,
+  FileUploadResponse,
+  ManagedSession,
+} from "../../shared/types";
 
 export interface SessionFlags {
   continue?: boolean;
@@ -16,8 +22,20 @@ export interface SessionFlags {
 export interface CreateSessionOptions {
   name?: string;
   cwd?: string;
+  agentType?: AgentType;
   flags?: SessionFlags;
   mode?: ClaudeMode;
+  agentConfig?: Record<string, unknown>;
+}
+
+export interface AgentInfo extends AgentTypeConfig {
+  type: AgentType;
+  capabilities: string[];
+}
+
+export interface AgentListResponse {
+  ok: boolean;
+  agents: AgentInfo[];
 }
 
 export interface CreateSessionResponse {
@@ -50,12 +68,23 @@ export function createSessionAPI(apiUrl: string) {
       cwd?: string,
       flags?: SessionFlags,
       mode?: ClaudeMode,
+      description?: string,
+      agentType?: AgentType,
+      agentConfig?: Record<string, unknown>,
     ): Promise<CreateSessionResponse> {
       try {
         const response = await fetch(`${apiUrl}/sessions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, cwd, flags, mode }),
+          body: JSON.stringify({
+            name,
+            cwd,
+            flags,
+            mode,
+            description,
+            agentType,
+            agentConfig,
+          }),
         });
         return await response.json();
       } catch (e) {
@@ -261,6 +290,39 @@ export function createSessionAPI(apiUrl: string) {
       } catch (e) {
         console.error("Error updating group:", e);
         return { ok: false, error: "Network error" };
+      }
+    },
+
+    /**
+     * Get all registered agent types and their capabilities
+     */
+    async getAgents(): Promise<AgentListResponse> {
+      try {
+        const response = await fetch(`${apiUrl}/agents`);
+        return await response.json();
+      } catch (e) {
+        console.error("Error fetching agents:", e);
+        return { ok: false, agents: [] };
+      }
+    },
+
+    /**
+     * Upload files to the server
+     */
+    async uploadFiles(files: File[]): Promise<FileUploadResponse> {
+      try {
+        const formData = new FormData();
+        for (const file of files) {
+          formData.append("files", file);
+        }
+        const response = await fetch(`${apiUrl}/upload`, {
+          method: "POST",
+          body: formData,
+        });
+        return await response.json();
+      } catch (e) {
+        console.error("Error uploading files:", e);
+        return { ok: false, error: "Upload failed" };
       }
     },
 

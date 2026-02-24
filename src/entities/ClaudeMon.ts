@@ -51,6 +51,8 @@ export class Claude implements ICharacter {
   private bobTime = 0;
   private workTime = 0;
   private thinkTime = 0;
+  private currentFacingAngle = 0;
+  private currentMoveSpeed = 0;
   private updateCallback: ((delta: number) => void) | null = null;
 
   // Body parts for animation
@@ -526,6 +528,10 @@ export class Claude implements ICharacter {
 
     this.targetPosition = targetStation.position.clone();
     this.currentStation = station;
+    if (this.state !== "walking") {
+      this.currentFacingAngle = this.mesh.rotation.y;
+      this.currentMoveSpeed = 0;
+    }
     this.state = "walking";
     this.updateStatusColor();
   }
@@ -533,6 +539,10 @@ export class Claude implements ICharacter {
   moveToPosition(position: THREE.Vector3, station: StationType): void {
     this.targetPosition = position.clone();
     this.currentStation = station;
+    if (this.state !== "walking") {
+      this.currentFacingAngle = this.mesh.rotation.y;
+      this.currentMoveSpeed = 0;
+    }
     this.state = "walking";
     this.updateStatusColor();
   }
@@ -623,22 +633,42 @@ export class Claude implements ICharacter {
 
       if (distance > 0.1) {
         direction.normalize();
-        const moveDistance = Math.min(this.moveSpeed * delta, distance);
+
+        // Smooth speed: accelerate from rest, decelerate near target
+        const decelZone = 2.0;
+        const decelFactor = distance < decelZone ? distance / decelZone : 1.0;
+        const desiredSpeed = this.moveSpeed * decelFactor;
+        const accelLerp = 1 - Math.exp(-6 * delta);
+        this.currentMoveSpeed +=
+          (desiredSpeed - this.currentMoveSpeed) * accelLerp;
+        this.currentMoveSpeed = Math.max(this.currentMoveSpeed, 0.3);
+        const moveDistance = Math.min(this.currentMoveSpeed * delta, distance);
         this.mesh.position.add(direction.multiplyScalar(moveDistance));
 
-        // Face movement direction
-        const angle = Math.atan2(direction.x, direction.z);
-        this.mesh.rotation.y = angle;
+        // Smooth facing: lerp rotation instead of snapping
+        const targetAngle = Math.atan2(direction.x, direction.z);
+        let angleDiff = targetAngle - this.currentFacingAngle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        const facingLerp = 1 - Math.exp(-10 * delta);
+        this.currentFacingAngle += angleDiff * facingLerp;
+        while (this.currentFacingAngle > Math.PI)
+          this.currentFacingAngle -= Math.PI * 2;
+        while (this.currentFacingAngle < -Math.PI)
+          this.currentFacingAngle += Math.PI * 2;
+        this.mesh.rotation.y = this.currentFacingAngle;
 
-        // Walking animation
-        this.bobTime += delta * 12;
+        // Walking animation (speed-responsive)
+        const speedRatio = this.currentMoveSpeed / this.moveSpeed;
+        this.bobTime += delta * (8 + 4 * speedRatio);
 
         // Body bob
         this.head.position.y = 0.52 + Math.abs(Math.sin(this.bobTime)) * 0.04;
 
-        // Arm swing
-        this.leftArm.rotation.x = Math.sin(this.bobTime) * 0.4;
-        this.rightArm.rotation.x = Math.sin(this.bobTime + Math.PI) * 0.4;
+        // Arm swing (amplitude scales with speed)
+        const armSwing = 0.25 + 0.15 * speedRatio;
+        this.leftArm.rotation.x = Math.sin(this.bobTime) * armSwing;
+        this.rightArm.rotation.x = Math.sin(this.bobTime + Math.PI) * armSwing;
 
         // Feet movement
         const leftFoot = this.body.getObjectByName("leftFoot") as THREE.Mesh;
@@ -659,6 +689,7 @@ export class Claude implements ICharacter {
       } else {
         this.mesh.position.copy(this.targetPosition);
         this.targetPosition = null;
+        this.currentMoveSpeed = 0;
         this.setState(this.currentStation === "center" ? "idle" : "working");
       }
     }

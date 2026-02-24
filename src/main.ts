@@ -21,6 +21,7 @@ import { EventClient } from "./events/EventClient";
 import { eventBus, type EventContext, type EventType } from "./events/EventBus";
 import { registerAllHandlers } from "./events/handlers";
 import {
+  AGENT_TYPES,
   type ClaudeEvent,
   type ClaudeMode,
   type PreToolUseEvent,
@@ -195,15 +196,15 @@ const ZONE_CREATION_TIMEOUT = 10000;
 // ============================================================================
 
 /**
- * Render a single session pill element (compact horizontal pill for command bar)
+ * Render a single session option element (vertical dropdown item for session chip)
  */
-function renderSessionPill(
+function renderSessionOption(
   session: ManagedSession,
   globalIndex: number,
-  isGrouped: boolean,
+  _isGrouped: boolean,
 ): HTMLElement {
   const el = document.createElement("div");
-  el.className = `session-pill${isGrouped ? " grouped" : ""}`;
+  el.className = "session-option";
   if (session.id === state.selectedManagedSession) {
     el.classList.add("active");
   }
@@ -218,9 +219,6 @@ function renderSessionPill(
   const hotkey = getSessionKeybind(globalIndex) || "";
 
   // Build tooltip with full details
-  const lastActive = session.lastActivity
-    ? formatTimeAgo(session.lastActivity)
-    : "";
   const lastPrompt = session.claudeSessionId
     ? state.lastPrompts.get(session.claudeSessionId)
     : null;
@@ -236,23 +234,16 @@ function renderSessionPill(
   ].filter(Boolean);
   el.title = tooltipParts.join("\n");
 
-  // Group color as bottom border
-  if (isGrouped && session.groupId) {
-    const group = state.zoneGroups.find((g) => g.id === session.groupId);
-    if (group?.color) {
-      el.style.borderBottomColor = group.color;
-    }
-  }
-
   el.innerHTML = `
-    <span class="pill-status ${statusClass}"></span>
-    <span class="pill-name">${escapeHtml(session.name)}</span>
-    ${hotkey ? `<span class="pill-hotkey">${hotkey}</span>` : ""}
+    <span class="session-option-status ${statusClass}"></span>
+    <span class="session-option-name">${escapeHtml(session.name)}</span>
+    ${hotkey ? `<span class="session-option-hotkey">${hotkey}</span>` : ""}
   `;
 
-  // Left click selects
+  // Left click selects and closes dropdown
   el.addEventListener("click", () => {
     selectManagedSession(session.id);
+    closeSessionChipDropdown();
   });
 
   // Right-click for context menu (rename/delete/restart)
@@ -287,40 +278,196 @@ function renderSessionPill(
   return el;
 }
 
+/** Close the session chip dropdown */
+function closeSessionChipDropdown(): void {
+  const dropdown = document.getElementById("session-chip-dropdown");
+  const btn = document.getElementById("session-chip-btn");
+  dropdown?.classList.add("hidden");
+  btn?.classList.remove("open");
+}
+
+/** Update the session chip button to reflect the currently selected session */
+function updateSessionChip(): void {
+  const label = document.getElementById("session-chip-label");
+  const dot = document.getElementById("session-chip-dot");
+  if (!label || !dot) return;
+
+  if (state.selectedManagedSession) {
+    const session = state.managedSessions.find(
+      (s) => s.id === state.selectedManagedSession,
+    );
+    if (session) {
+      label.textContent = session.name;
+      dot.className = `pill-status ${session.status}`;
+      dot.style.display = "";
+    } else {
+      label.textContent = t("commandBar.allSessions");
+      dot.style.display = "none";
+    }
+  } else {
+    label.textContent = t("commandBar.allSessions");
+    dot.style.display = "none";
+  }
+}
+
 /**
- * Render the managed sessions as horizontal pills in the command bar dock
+ * Render the managed sessions as vertical options in the session chip dropdown
  */
+/** Track existing option elements by session ID for diff-based updates */
+const _pillElements = new Map<string, HTMLElement>();
+
 function renderManagedSessions(): void {
-  const container = document.getElementById("session-pills");
+  const container = document.getElementById("session-options");
   if (!container) return;
 
-  container.innerHTML = "";
-
-  // Update "All" pill active state
-  const allPill = document.querySelector(".session-pill-all");
-  if (allPill) {
-    allPill.classList.toggle("active", state.selectedManagedSession === null);
+  // Update "All" option active state
+  const allOption = document.querySelector(".session-option-all");
+  if (allOption) {
+    allOption.classList.toggle("active", state.selectedManagedSession === null);
   }
+
+  // Update session chip button
+  updateSessionChip();
 
   // Empty state hint
   if (state.managedSessions.length === 0) {
-    const hint = document.createElement("span");
-    hint.className = "sessions-empty-hint";
-    hint.textContent = t("commandBar.noZones");
-    container.appendChild(hint);
+    // Remove all existing options
+    for (const [id, el] of _pillElements) {
+      el.remove();
+      _pillElements.delete(id);
+    }
+    // Show hint if not already present
+    if (!container.querySelector(".sessions-empty-hint")) {
+      container.innerHTML = "";
+      const hint = document.createElement("span");
+      hint.className = "sessions-empty-hint";
+      hint.textContent = t("commandBar.noZones");
+      container.appendChild(hint);
+    }
     return;
   }
+
+  // Remove empty hint if present
+  const hint = container.querySelector(".sessions-empty-hint");
+  if (hint) hint.remove();
 
   // Build global index map for hotkey assignment
   const globalIndexMap = new Map<string, number>();
   state.managedSessions.forEach((s, i) => globalIndexMap.set(s.id, i));
 
-  // Render all sessions as pills (flat list - groups shown via colored border)
+  const currentIds = new Set(state.managedSessions.map((s) => s.id));
+
+  // Remove options for sessions that no longer exist
+  for (const [id, el] of _pillElements) {
+    if (!currentIds.has(id)) {
+      el.remove();
+      _pillElements.delete(id);
+    }
+  }
+
+  // Add or update options for each session
   for (const session of state.managedSessions) {
     const idx = globalIndexMap.get(session.id) ?? -1;
     const isGrouped = !!session.groupId;
-    container.appendChild(renderSessionPill(session, idx, isGrouped));
+    const existing = _pillElements.get(session.id);
+
+    if (existing) {
+      // Update existing option in-place (classes + content)
+      updateSessionOption(existing, session, idx);
+    } else {
+      // Create new option
+      const el = renderSessionOption(session, idx, isGrouped);
+      el.dataset.sessionId = session.id;
+      _pillElements.set(session.id, el);
+      container.appendChild(el);
+    }
   }
+
+  // Ensure correct order
+  for (const session of state.managedSessions) {
+    const el = _pillElements.get(session.id);
+    if (el) container.appendChild(el);
+  }
+}
+
+/**
+ * Update an existing session option element in-place without recreating it
+ */
+function updateSessionOption(
+  el: HTMLElement,
+  session: ManagedSession,
+  globalIndex: number,
+): void {
+  // Update classes
+  const needsAttention =
+    state.attentionSystem?.needsAttention(session.id) ?? false;
+  el.className = "session-option";
+  if (session.id === state.selectedManagedSession) el.classList.add("active");
+  if (needsAttention) el.classList.add("needs-attention");
+
+  // Update status dot
+  const statusDot = el.querySelector(".session-option-status");
+  if (statusDot) {
+    statusDot.className = `session-option-status ${session.status}`;
+  }
+
+  // Update name
+  const nameSpan = el.querySelector(".session-option-name");
+  if (nameSpan && nameSpan.textContent !== session.name) {
+    nameSpan.textContent = session.name;
+  }
+
+  // Update hotkey
+  const hotkey = getSessionKeybind(globalIndex) || "";
+  const hotkeySpan = el.querySelector(".session-option-hotkey");
+  if (hotkey && !hotkeySpan) {
+    const span = document.createElement("span");
+    span.className = "session-option-hotkey";
+    span.textContent = hotkey;
+    el.appendChild(span);
+  } else if (!hotkey && hotkeySpan) {
+    hotkeySpan.remove();
+  } else if (hotkey && hotkeySpan && hotkeySpan.textContent !== hotkey) {
+    hotkeySpan.textContent = hotkey;
+  }
+
+  // Update agent type badge
+  const agentType = session.agentType || "claude_code";
+  const agentBadge = el.querySelector(".session-option-agent-badge");
+  if (agentType !== "claude_code") {
+    const agentConfig = AGENT_TYPES[agentType];
+    if (agentConfig && !agentBadge) {
+      const badge = document.createElement("span");
+      badge.className = "session-option-agent-badge";
+      badge.textContent = agentConfig.icon;
+      badge.title = agentConfig.name;
+      // Insert before name
+      const nameEl = el.querySelector(".session-option-name");
+      if (nameEl) {
+        nameEl.parentElement?.insertBefore(badge, nameEl);
+      }
+    }
+  } else if (agentBadge) {
+    agentBadge.remove();
+  }
+
+  // Update tooltip
+  const lastPrompt = session.claudeSessionId
+    ? state.lastPrompts.get(session.claudeSessionId)
+    : null;
+  const agentLabel = AGENT_TYPES[agentType]?.name || agentType;
+  const tooltipParts = [
+    `Name: ${session.name}`,
+    `Agent: ${agentLabel}`,
+    `Status: ${session.status}`,
+    session.cwd ? `Dir: ${session.cwd}` : "",
+    session.currentTool ? `Tool: ${session.currentTool}` : "",
+    session.lastActivity
+      ? `Last active: ${new Date(session.lastActivity).toLocaleString()}`
+      : "",
+    lastPrompt ? `Last prompt: ${lastPrompt}` : "",
+  ].filter(Boolean);
+  el.title = tooltipParts.join("\n");
 }
 
 /**
@@ -365,7 +512,7 @@ function selectManagedSession(sessionId: string | null): void {
     if (targetEl) {
       targetEl.innerHTML =
         '<span style="color: rgba(255,255,255,0.4)">all sessions</span>';
-      targetEl.title = "Select a session to send prompts";
+      targetEl.title = t("commandBar.selectSessionHint");
     }
     updateModeSelector(null);
   }
@@ -388,8 +535,19 @@ async function createManagedSession(
   hintPosition?: { x: number; z: number },
   pendingZoneId?: string,
   mode?: ClaudeMode,
+  description?: string,
+  agentType?: import("../shared/types").AgentType,
+  agentConfig?: Record<string, unknown>,
 ): Promise<void> {
-  const data = await sessionAPI.createSession(name, cwd, flags, mode);
+  const data = await sessionAPI.createSession(
+    name,
+    cwd,
+    flags,
+    mode,
+    description,
+    agentType,
+    agentConfig,
+  );
 
   if (!data.ok) {
     console.error("Failed to create session:", data.error);
@@ -593,6 +751,14 @@ function openNewSessionModal(hintPosition?: { x: number; z: number }): void {
   }
   if (cwdInput) cwdInput.value = "";
 
+  // Reset agent type selector
+  const agentTypeSelect = document.getElementById(
+    "session-agent-type",
+  ) as HTMLSelectElement;
+  if (agentTypeSelect) agentTypeSelect.value = "claude_code";
+  const claudeCodeOptions = document.getElementById("claude-code-options");
+  if (claudeCodeOptions) claudeCodeOptions.style.display = "";
+
   modal.classList.add("visible");
 
   // Play modal open sound
@@ -620,6 +786,18 @@ function setupManagedSessions(): void {
   // Setup directory autocomplete
   if (cwdInput) {
     setupDirectoryAutocomplete(cwdInput);
+  }
+
+  // Agent type selector: show/hide Claude Code-specific options
+  const agentTypeSelect = document.getElementById(
+    "session-agent-type",
+  ) as HTMLSelectElement;
+  const claudeCodeOptions = document.getElementById("claude-code-options");
+  if (agentTypeSelect && claudeCodeOptions) {
+    agentTypeSelect.addEventListener("change", () => {
+      claudeCodeOptions.style.display =
+        agentTypeSelect.value === "claude_code" ? "" : "none";
+    });
   }
 
   // Auto-populate name from directory when cwd changes
@@ -655,26 +833,9 @@ function setupManagedSessions(): void {
     });
   }
 
-  // Mode radio controls skip-permissions checkbox
-  const modeRadios = document.querySelectorAll('input[name="session-mode"]');
-  const skipPermsRow = document.getElementById("session-opt-skip-perms-row");
-  const skipPermsCheckbox = document.getElementById(
-    "session-opt-skip-perms",
-  ) as HTMLInputElement;
-  modeRadios.forEach((radio) => {
-    radio.addEventListener("change", (e) => {
-      const mode = (e.target as HTMLInputElement).value as ClaudeMode;
-      if (mode === "ask-before-edit") {
-        // ask-before-edit disables skip-perms
-        if (skipPermsCheckbox) skipPermsCheckbox.checked = false;
-        if (skipPermsRow) skipPermsRow.style.opacity = "0.4";
-      } else {
-        // auto-edit and plan enable skip-perms
-        if (skipPermsCheckbox) skipPermsCheckbox.checked = true;
-        if (skipPermsRow) skipPermsRow.style.opacity = "1";
-      }
-    });
-  });
+  const descriptionInput = document.getElementById(
+    "session-description-input",
+  ) as HTMLTextAreaElement;
 
   const closeModal = (): void => {
     modal?.classList.remove("visible");
@@ -684,14 +845,16 @@ function setupManagedSessions(): void {
   const handleCreate = (): void => {
     const name = nameInput?.value.trim() || undefined;
     const cwd = cwdInput?.value.trim() || undefined;
+    const description = descriptionInput?.value.trim() || undefined;
 
-    // Read selected mode
-    const modeRadio = document.querySelector(
-      'input[name="session-mode"]:checked',
-    ) as HTMLInputElement;
-    const mode = (modeRadio?.value as ClaudeMode) || "auto-edit";
+    // Read agent type selector
+    const agentTypeSelect = document.getElementById(
+      "session-agent-type",
+    ) as HTMLSelectElement;
+    const agentType = (agentTypeSelect?.value ||
+      "claude_code") as import("../shared/types").AgentType;
 
-    // Read flag checkboxes
+    // Read flag checkboxes (only relevant for claude_code)
     const continueCheck = document.getElementById(
       "session-opt-continue",
     ) as HTMLInputElement;
@@ -702,14 +865,14 @@ function setupManagedSessions(): void {
       "session-opt-chrome",
     ) as HTMLInputElement;
 
-    // Mode determines skipPermissions: auto-edit and plan use skip-perms,
-    // ask-before-edit does not (unless explicitly checked)
-    const flags: SessionFlags = {
-      continue: continueCheck?.checked ?? true,
-      skipPermissions:
-        mode === "ask-before-edit" ? false : (skipPermsCheck?.checked ?? true),
-      chrome: chromeCheck?.checked ?? false,
-    };
+    const flags: SessionFlags =
+      agentType === "claude_code"
+        ? {
+            continue: continueCheck?.checked ?? true,
+            skipPermissions: skipPermsCheck?.checked ?? true,
+            chrome: chromeCheck?.checked ?? false,
+          }
+        : {};
 
     // Capture hint before closing modal (closeModal clears it)
     const hintPosition = currentModalHint;
@@ -743,7 +906,9 @@ function setupManagedSessions(): void {
       flags,
       hintPosition ?? undefined,
       pendingId,
-      mode,
+      undefined,
+      description,
+      agentType,
     );
   };
 
@@ -795,17 +960,50 @@ function setupManagedSessions(): void {
   nameInput?.addEventListener("keydown", handleEnter);
   cwdInput?.addEventListener("keydown", handleEnter);
 
-  // "All" pill click handler
-  const allPill = document.querySelector(".session-pill-all");
-  if (allPill) {
-    allPill.addEventListener("click", () => {
+  // "All" option click handler (in session chip dropdown)
+  const allOption = document.querySelector(".session-option-all");
+  if (allOption) {
+    allOption.addEventListener("click", () => {
       selectManagedSession(null);
+      closeSessionChipDropdown();
     });
   }
 
-  // Feed drawer toggle & close
+  // Session chip dropdown toggle
+  const chipBtn = document.getElementById("session-chip-btn");
+  const chipDropdown = document.getElementById("session-chip-dropdown");
+  if (chipBtn && chipDropdown) {
+    chipBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = !chipDropdown.classList.contains("hidden");
+      if (isOpen) {
+        closeSessionChipDropdown();
+      } else {
+        chipDropdown.classList.remove("hidden");
+        chipBtn.classList.add("open");
+      }
+    });
+    // Close on outside click
+    document.addEventListener("click", () => {
+      closeSessionChipDropdown();
+    });
+    chipDropdown.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  // New zone button in session chip dropdown
+  const newSessionOption = document.getElementById("new-session-option");
+  if (newSessionOption) {
+    newSessionOption.addEventListener("click", () => {
+      closeSessionChipDropdown();
+      openNewSessionModal();
+    });
+  }
+
+  // Feed drawer toggle & close (floating button)
   const feedDrawer = document.getElementById("feed-drawer");
-  const feedToggleBtn = document.getElementById("feed-toggle-btn");
+  const feedToggleBtn = document.getElementById("feed-toggle-floating");
   const drawerClose = document.getElementById("feed-drawer-close");
 
   const syncFeedToggle = () => {
@@ -2094,6 +2292,9 @@ function setupDevPanel(): void {
 /** Map Claude sessionIds to managed session IDs */
 const claudeToManagedLink = new Map<string, string>();
 
+/** Snapshot of last received sessions for dedup (avoids redundant UI rebuilds) */
+let _lastSessionsSnapshot = "";
+
 function getOrCreateSession(
   sessionId: string,
   eventCwd?: string,
@@ -2184,9 +2385,24 @@ function getOrCreateSession(
     }
   }
 
-  // Create Claude with matching color, positioned at zone center
+  // Determine character color: use agent type color if linked to a non-claude_code session
+  let characterColor = zone.color;
+  let characterStatusColor: number | undefined;
+  if (
+    linkedManagedSession?.agentType &&
+    linkedManagedSession.agentType !== "claude_code"
+  ) {
+    const agentConfig = AGENT_TYPES[linkedManagedSession.agentType];
+    if (agentConfig) {
+      characterColor = agentConfig.color;
+      characterStatusColor = agentConfig.statusColor;
+    }
+  }
+
+  // Create character with matching color, positioned at zone center
   const claude = new Claude(state.scene, {
-    color: zone.color,
+    color: characterColor,
+    statusColor: characterStatusColor,
     startStation: "center",
   });
 
@@ -2810,6 +3026,129 @@ function setupPromptForm() {
   // Setup slash command autocomplete
   setupSlashCommands(input);
 
+  // ===== File Attachment Support =====
+  const pendingFiles: Array<{
+    file: File;
+    id: string;
+    previewUrl?: string;
+  }> = [];
+  const fileAttachmentsEl = document.getElementById("file-attachments");
+  const fileUploadBtn = document.getElementById("file-upload-btn");
+  const fileUploadInput = document.getElementById(
+    "file-upload-input",
+  ) as HTMLInputElement | null;
+  const promptContainer = document.getElementById("prompt-container");
+
+  function addPendingFile(file: File) {
+    const id = `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const entry: { file: File; id: string; previewUrl?: string } = {
+      file,
+      id,
+    };
+    if (file.type.startsWith("image/")) {
+      entry.previewUrl = URL.createObjectURL(file);
+    }
+    pendingFiles.push(entry);
+    renderFileAttachments();
+  }
+
+  function removePendingFile(id: string) {
+    const idx = pendingFiles.findIndex((f) => f.id === id);
+    if (idx >= 0) {
+      const entry = pendingFiles[idx];
+      if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+      pendingFiles.splice(idx, 1);
+      renderFileAttachments();
+    }
+  }
+
+  function clearPendingFiles() {
+    for (const entry of pendingFiles) {
+      if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+    }
+    pendingFiles.length = 0;
+    renderFileAttachments();
+  }
+
+  function getFileIcon(mimeType: string): string {
+    if (mimeType.startsWith("image/")) return "\u{1f5bc}";
+    if (mimeType === "application/pdf") return "\u{1f4c4}";
+    return "\u{1f4ce}";
+  }
+
+  function renderFileAttachments() {
+    if (!fileAttachmentsEl) return;
+    if (pendingFiles.length === 0) {
+      fileAttachmentsEl.classList.add("hidden");
+      fileAttachmentsEl.innerHTML = "";
+      return;
+    }
+    fileAttachmentsEl.classList.remove("hidden");
+    fileAttachmentsEl.innerHTML = pendingFiles
+      .map((entry) => {
+        const isImage = entry.file.type.startsWith("image/");
+        const sizeKB = (entry.file.size / 1024).toFixed(1);
+        return `<div class="file-chip" data-file-id="${entry.id}">${
+          isImage && entry.previewUrl
+            ? `<img class="file-chip-preview" src="${entry.previewUrl}" alt="${entry.file.name}">`
+            : `<span class="file-chip-icon">${getFileIcon(entry.file.type)}</span>`
+        }<span class="file-chip-name">${entry.file.name}</span><span class="file-chip-size">${sizeKB}KB</span><button type="button" class="file-chip-remove" data-file-id="${entry.id}">\u00d7</button></div>`;
+      })
+      .join("");
+    fileAttachmentsEl.querySelectorAll(".file-chip-remove").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const id = (e.currentTarget as HTMLElement).dataset.fileId;
+        if (id) removePendingFile(id);
+      });
+    });
+  }
+
+  // Clipboard paste handler (for screenshots)
+  input.addEventListener("paste", (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.kind === "file") {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) addPendingFile(file);
+      }
+    }
+  });
+
+  // File upload button
+  fileUploadBtn?.addEventListener("click", () => {
+    fileUploadInput?.click();
+  });
+  fileUploadInput?.addEventListener("change", () => {
+    const files = fileUploadInput?.files;
+    if (files) {
+      for (const file of Array.from(files)) {
+        addPendingFile(file);
+      }
+      if (fileUploadInput) fileUploadInput.value = "";
+    }
+  });
+
+  // Drag and drop on prompt container
+  promptContainer?.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    promptContainer.classList.add("drag-over");
+  });
+  promptContainer?.addEventListener("dragleave", () => {
+    promptContainer.classList.remove("drag-over");
+  });
+  promptContainer?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    promptContainer.classList.remove("drag-over");
+    const files = e.dataTransfer?.files;
+    if (files) {
+      for (const file of Array.from(files)) {
+        addPendingFile(file);
+      }
+    }
+  });
+
   // Keyboard handling: Cmd/Ctrl+Enter to send, Up/Down for history
   // Note: Skip if slash commands already handled the event
   input.addEventListener("keydown", (e) => {
@@ -2920,7 +3259,7 @@ function setupPromptForm() {
     }
 
     const prompt = input.value.trim();
-    if (!prompt) return;
+    if (!prompt && pendingFiles.length === 0) return;
 
     const send = true;
 
@@ -2931,6 +3270,40 @@ function setupPromptForm() {
     }
 
     try {
+      // Upload pending files if any
+      let augmentedPrompt = prompt;
+      if (pendingFiles.length > 0) {
+        if (status) {
+          status.textContent = t("fileUpload.uploading");
+          status.className = "";
+        }
+        const uploadResult = await sessionAPI.uploadFiles(
+          pendingFiles.map((f) => f.file),
+        );
+        if (!uploadResult.ok || !uploadResult.files) {
+          if (status) {
+            status.textContent =
+              uploadResult.error || t("fileUpload.uploadFailed");
+            status.className = "error";
+          }
+          button.disabled = false;
+          return;
+        }
+        const fileRefs = uploadResult.files
+          .map((f) => {
+            const isImage = f.mimeType.startsWith("image/");
+            if (isImage) {
+              return `[Attached image: ${f.originalName}] Read file: ${f.savedPath}`;
+            }
+            return `[Attached file: ${f.originalName}] Read file: ${f.savedPath}`;
+          })
+          .join("\n");
+        augmentedPrompt = prompt
+          ? `${prompt}\n\n---\nAttached files:\n${fileRefs}`
+          : `Please review the following attached files:\n${fileRefs}`;
+        clearPendingFiles();
+      }
+
       let data: {
         ok: boolean;
         error?: string;
@@ -2944,7 +3317,7 @@ function setupPromptForm() {
         const session = state.managedSessions.find(
           (s) => s.id === state.selectedManagedSession,
         );
-        data = await sendPromptToManagedSession(prompt);
+        data = await sendPromptToManagedSession(augmentedPrompt);
         if (data.ok && status) {
           status.textContent = t("status.sentTo", {
             name: session?.name || "session",
@@ -2966,7 +3339,7 @@ function setupPromptForm() {
         const response = await fetch(PROMPT_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, send }),
+          body: JSON.stringify({ prompt: augmentedPrompt, send }),
         });
         data = await response.json();
 
@@ -3599,6 +3972,16 @@ function init() {
 
   // Handle managed sessions updates
   state.client.onSessions((sessions) => {
+    // Dedup: skip processing if nothing meaningful changed
+    const snapshot = sessions
+      .map(
+        (s) =>
+          `${s.id}:${s.claudeSessionId ?? ""}:${s.status}:${s.name}:${s.currentTool ?? ""}:${s.mode ?? ""}:${s.groupId ?? ""}`,
+      )
+      .join("|");
+    const isIdentical = snapshot === _lastSessionsSnapshot;
+    _lastSessionsSnapshot = snapshot;
+
     // Reconcile local link map with server's authoritative data
     // Server is the source of truth for session linking
     claudeToManagedLink.clear();
@@ -3707,16 +4090,24 @@ function init() {
       }
     }
 
-    // Clean up orphaned zones (zones not linked to any managed session)
-    if (state.scene) {
+    // Clean up orphaned zones (zones whose managed session has been deleted).
+    // Only delete zones when no managed session references that claudeSessionId.
+    // Zones for offline/unlinked sessions are kept visible in "offline" state.
+    if (state.scene && !isIdentical) {
       const activeClaudeIds = new Set(
         sessions.map((s) => s.claudeSessionId).filter(Boolean),
       );
+      const managedSessionIds = new Set(sessions.map((s) => s.id));
       const zonesToDelete: string[] = [];
       for (const [zoneId] of state.scene.zones) {
-        if (!activeClaudeIds.has(zoneId)) {
-          zonesToDelete.push(zoneId);
-        }
+        if (activeClaudeIds.has(zoneId)) continue; // Zone is actively linked
+
+        // Check if a managed session still owns this zone via the link map
+        const managedId = claudeToManagedLink.get(zoneId);
+        if (managedId && managedSessionIds.has(managedId)) continue; // Session still exists
+
+        // This zone is truly orphaned (no managed session references it)
+        zonesToDelete.push(zoneId);
       }
       for (const zoneId of zonesToDelete) {
         // Clean up session state (Claude entity, subagents)
@@ -3755,7 +4146,9 @@ function init() {
     }
 
     state.managedSessions = sessions;
-    renderManagedSessions();
+    if (!isIdentical) {
+      renderManagedSessions();
+    }
 
     // Re-apply feed filter if the selected session's claudeSessionId changed
     // This handles the case where linking happens after the user selected a session,
@@ -3949,49 +4342,19 @@ function init() {
   // Setup not-connected overlay
   setupNotConnectedOverlay();
 
-  // Setup voice input
-  // On vibecraft.sh: voice is always available via cloud proxy, set up immediately
-  // On localhost: needs client connected and voice enabled on server
-  const isHostedSite = window.location.hostname === "vibecraft.sh";
-  const voiceControl = document.getElementById("voice-control");
+  // Setup voice input (uses browser SpeechRecognition — no server needed)
+  const voiceMicBtn = document.getElementById("voice-mode-btn");
+  const hasSpeechRecognition = !!(
+    window.SpeechRecognition || window.webkitSpeechRecognition
+  );
 
-  if (isHostedSite) {
-    // Hosted mode - voice always available via cloud proxy
-    if (voiceControl) voiceControl.classList.remove("disabled");
+  if (hasSpeechRecognition) {
     state.voice = setupVoiceControl({
-      client: state.client,
       soundEnabled: () => state.soundEnabled,
     });
-  } else {
-    // Local mode - check server health for voice availability
-    state.client.onConnection(async (connected) => {
-      if (connected && state.client) {
-        try {
-          const res = await fetch("/health");
-          const health = await res.json();
-          if (!health.voiceEnabled) {
-            if (voiceControl) {
-              voiceControl.classList.add("disabled");
-              voiceControl.title =
-                "Voice disabled - set DEEPGRAM_API_KEY in .env";
-            }
-            return;
-          }
-        } catch {
-          if (voiceControl) {
-            voiceControl.classList.add("disabled");
-            voiceControl.title = "Voice unavailable - server connection failed";
-          }
-          return;
-        }
-        // Voice is enabled, set it up
-        if (voiceControl) voiceControl.classList.remove("disabled");
-        state.voice = setupVoiceControl({
-          client: state.client,
-          soundEnabled: () => state.soundEnabled,
-        });
-      }
-    });
+  } else if (voiceMicBtn) {
+    voiceMicBtn.classList.add("not-supported");
+    voiceMicBtn.title = t("voice.notSupported");
   }
 
   // Initialize audio on first user interaction

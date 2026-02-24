@@ -21,6 +21,7 @@ const zh = {
     noZones: "暂无区域",
     noSession: "未选择会话",
     newZone: "新建区域",
+    selectSessionHint: "选择会话以发送提示",
   },
 
   // Activity feed
@@ -39,6 +40,10 @@ const zh = {
     emptyHint: "创建一个区域以开始",
     pattern: "匹配: {pattern}",
     query: "查询: {query}",
+    moreTools: "另有 {n} 个工具",
+    showDetails: "展开更多",
+    hideDetails: "收起",
+    noDetails: "无详情",
   },
 
   // Time formatting
@@ -59,13 +64,9 @@ const zh = {
     transcript: "转录:",
     error: "错误",
     noSpeech: "未检测到语音",
-    notConnected: "未连接到服务器",
-    timeout: "转录服务超时",
+    notSupported: "此浏览器不支持语音输入",
     micDenied: "麦克风权限被拒绝",
-    connectionFailed: "语音连接失败",
-    notConfigured: "语音未配置（缺少 API 密钥）",
-    rateLimit: "请求频率超限",
-    deepgramHint: "在 .env 中设置 DEEPGRAM_API_KEY",
+    connectionFailed: "语音识别失败",
     sendHint: "发送",
     startVoice: "开始语音输入",
   },
@@ -86,7 +87,9 @@ const zh = {
     title: "新建区域",
     directory: "目录",
     name: "名称",
-    mode: "模式",
+    description: "描述",
+    descriptionPlaceholder: "这个区域做什么？（可选）",
+    descriptionHint: "帮助自动将提示路由到正确的区域",
     options: "选项",
     namePlaceholder: "根据目录自动填充...",
     dirPlaceholder: "例如 /home/user/my-project",
@@ -137,7 +140,7 @@ const zh = {
     attachToSession: "连接到会话",
     voiceInput: "语音输入",
     voiceHelp:
-      "要启用语音输入，请在 <code>.env</code> 中添加 Deepgram API 密钥：",
+      "按 <kbd>Ctrl+M</kbd> 或点击麦克风按钮开始语音输入。支持中文和英文。",
   },
 
   // Question modal
@@ -192,8 +195,7 @@ const zh = {
   // Zone timeout modal
   zoneTimeout: {
     title: "区域无响应",
-    description:
-      "区域启动时间超出预期。Claude Code 可能卡住或正在等待输入。",
+    description: "区域启动时间超出预期。Claude Code 可能卡住或正在等待输入。",
     updateHint: "请确保你的 Claude Code 是最新版本。",
   },
 
@@ -295,6 +297,13 @@ const zh = {
     antenna: "天线",
     portal: "传送门",
     taskboard: "任务板",
+  },
+
+  // File upload
+  fileUpload: {
+    attach: "附加文件",
+    uploading: "正在上传文件...",
+    uploadFailed: "文件上传失败",
   },
 
   // Tooltips

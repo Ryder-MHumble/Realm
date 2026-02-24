@@ -189,12 +189,68 @@ export type ClientMessage =
   | { type: "subscribe"; payload?: { sessionId?: string } }
   | { type: "get_history"; payload?: { limit?: number } }
   | { type: "ping" }
-  | { type: "voice_start" }
-  | { type: "voice_stop" }
   | {
       type: "permission_response";
       payload: { sessionId: string; response: string };
     };
+
+// ============================================================================
+// Agent Types (Multi-Claw Framework Support)
+// ============================================================================
+
+/** Supported agent framework types */
+export type AgentType = "claude_code" | "nanoclaw" | "zeroclaw" | "openclaw";
+
+/** Visual configuration for each agent type */
+export interface AgentTypeConfig {
+  name: string;
+  label: string;
+  color: number;
+  accentColor: number;
+  statusColor: number;
+  icon: string;
+  description: string;
+}
+
+/** Pre-defined agent type configurations */
+export const AGENT_TYPES: Record<AgentType, AgentTypeConfig> = {
+  claude_code: {
+    name: "Claude Code",
+    label: "Claude Code",
+    color: 0x1e3a5f,
+    accentColor: 0x60a5fa,
+    statusColor: 0x3b82f6,
+    icon: "\u{1F916}",
+    description: "Anthropic Claude Code CLI agent",
+  },
+  nanoclaw: {
+    name: "NanoClaw",
+    label: "NanoClaw",
+    color: 0x2d1b4e,
+    accentColor: 0xa78bfa,
+    statusColor: 0x7c3aed,
+    icon: "\u{1F980}",
+    description: "Lightweight container-isolated AI agent",
+  },
+  zeroclaw: {
+    name: "ZeroClaw",
+    label: "ZeroClaw",
+    color: 0x1a3c2a,
+    accentColor: 0x4ade80,
+    statusColor: 0x22c55e,
+    icon: "\u26A1",
+    description: "Ultra-lightweight Rust AI agent runtime",
+  },
+  openclaw: {
+    name: "OpenClaw",
+    label: "OpenClaw",
+    color: 0x4a2c1a,
+    accentColor: 0xfb923c,
+    statusColor: 0xea580c,
+    icon: "\u{1F419}",
+    description: "Open-source autonomous AI agent",
+  },
+};
 
 // ============================================================================
 // Realm: AI Role Types
@@ -344,13 +400,15 @@ export type SessionStatus = "idle" | "working" | "waiting" | "offline";
 /** Claude Code operating mode */
 export type ClaudeMode = "auto-edit" | "plan" | "ask-before-edit";
 
-/** A managed Claude session */
+/** A managed agent session */
 export interface ManagedSession {
   /** Our internal ID (UUID) */
   id: string;
   /** User-friendly name ("Frontend", "Tests") */
   name: string;
-  /** Actual tmux session name */
+  /** Agent framework type (defaults to 'claude_code' for backward compat) */
+  agentType: AgentType;
+  /** Process identifier (tmux session name for claude_code, container ID for nanoclaw, etc.) */
   tmuxSession: string;
   /** Current status */
   status: SessionStatus;
@@ -380,6 +438,12 @@ export interface ManagedSession {
   mode?: ClaudeMode;
   /** Zone group ID (if this session belongs to a group) */
   groupId?: string;
+  /** User-provided description for routing prompts */
+  description?: string;
+  /** Agent-specific config (container ID, binary path, etc.) */
+  agentConfig?: Record<string, unknown>;
+  /** Capabilities reported by the agent */
+  capabilities?: string[];
 }
 
 /** Git repository status */
@@ -436,14 +500,20 @@ export interface KnownProject {
 export interface CreateSessionRequest {
   name?: string;
   cwd?: string;
-  /** Claude command flags */
+  /** Agent framework type (default: 'claude_code') */
+  agentType?: AgentType;
+  /** Claude command flags (claude_code only) */
   flags?: {
     continue?: boolean; // -c (continue last conversation)
     skipPermissions?: boolean; // --dangerously-skip-permissions
     chrome?: boolean; // --chrome
   };
-  /** Claude Code operating mode */
+  /** Claude Code operating mode (claude_code only) */
   mode?: ClaudeMode;
+  /** User-provided description for routing prompts */
+  description?: string;
+  /** Agent-specific config (container settings, binary path, etc.) */
+  agentConfig?: Record<string, unknown>;
 }
 
 /** Request to update a session */
@@ -472,6 +542,29 @@ export interface SessionResponse {
 export interface SessionListResponse {
   ok: boolean;
   sessions: ManagedSession[];
+}
+
+// ============================================================================
+// File Upload
+// ============================================================================
+
+/** Response from file upload endpoint */
+export interface FileUploadResponse {
+  ok: boolean;
+  files?: UploadedFileInfo[];
+  error?: string;
+}
+
+/** Metadata for an uploaded file */
+export interface UploadedFileInfo {
+  /** Original filename */
+  originalName: string;
+  /** Absolute path on disk where file was saved */
+  savedPath: string;
+  /** MIME type */
+  mimeType: string;
+  /** File size in bytes */
+  size: number;
 }
 
 // ============================================================================

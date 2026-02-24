@@ -1,36 +1,20 @@
 /**
- * VoiceControl - Voice input UI controller
+ * VoiceControl - ChatGPT-style voice mode controller
  *
- * Handles:
- * - Voice recording toggle (mic button, keyboard shortcuts)
- * - Real-time transcript display
- * - Audio level visualization (spectrum bars)
- * - Deepgram WebSocket communication
- * - Error handling and recovery
+ * When the mic button is clicked, the prompt form hides and a voice
+ * visualization + Send/Stop bar appears in its place.
  *
- * On hosted site: uses cloud proxy for Deepgram
- * On localhost: uses local server via EventClient socket
+ * - Send button: stop recording, submit transcript immediately
+ * - Stop button: stop recording, put transcript in textarea, return to text mode
+ * - No global keyboard shortcut (avoids accidental triggers while typing)
+ *
+ * Uses the Web Speech API (SpeechRecognition) — no server or API key needed.
+ * Supports Chinese (zh-CN) and English (en-US) based on i18n locale.
  */
 
 import { VoiceInput } from "../audio/VoiceInput";
 import { soundManager } from "../audio/SoundManager";
-import type { EventClient } from "../events/EventClient";
-import { keybindManager } from "./KeybindConfig";
-
-/**
- * Check if we're running on the hosted vibecraft.sh site
- */
-function isHostedSite(): boolean {
-  return window.location.hostname === "vibecraft.sh";
-}
-
-/**
- * Get the voice proxy WebSocket URL for hosted mode
- */
-function getCloudVoiceUrl(): string {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}/voice`;
-}
+import { getLocale } from "../i18n/index";
 
 export type VoiceStatus = "idle" | "connecting" | "recording" | "error";
 
@@ -45,62 +29,98 @@ export interface VoiceState {
 }
 
 interface VoiceControlDeps {
-  client: EventClient;
   soundEnabled: () => boolean;
   onStateChange?: (state: VoiceState) => void;
 }
 
+/** Get SpeechRecognition constructor (handles webkit prefix) */
+function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+/** Map i18n locale to BCP-47 language tag for SpeechRecognition */
+function getRecognitionLang(): string {
+  return getLocale() === "zh" ? "zh-CN" : "en-US";
+}
+
 /**
- * Initialize voice input controls
- * Returns the voice state object if setup succeeds, null otherwise
+ * Initialize voice input controls (ChatGPT-style mode toggle).
+ * Returns the voice state object if setup succeeds, null otherwise.
  */
 export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
-  const { client, soundEnabled } = deps;
+  const { soundEnabled } = deps;
 
-  // DOM elements
-  const voiceBtn = document.getElementById(
-    "voice-btn",
+  // Check browser support
+  const SpeechRecognitionCtor = getSpeechRecognitionCtor();
+  if (!SpeechRecognitionCtor) return null;
+
+  // DOM elements — AI-native layout (voice mode hides prompt-container)
+  const micBtn = document.getElementById(
+    "voice-mode-btn",
   ) as HTMLButtonElement | null;
+  const promptForm = document.getElementById(
+    "prompt-form",
+  ) as HTMLFormElement | null;
+  const promptContainer = document.getElementById(
+    "prompt-container",
+  ) as HTMLElement | null;
+  const voiceModeEl = document.getElementById("voice-mode");
   const promptInput = document.getElementById(
     "prompt-input",
   ) as HTMLTextAreaElement | null;
-  const transcriptEl = document.getElementById("voice-transcript");
-  const transcriptTextEl = document.getElementById("voice-transcript-text");
-  const transcriptLabelEl = transcriptEl?.querySelector(".transcript-label");
-  const voiceControlEl = document.getElementById("voice-control");
-  const voiceBars = voiceControlEl?.querySelectorAll(".voice-bar") as
+  const sendBtn = document.getElementById(
+    "voice-send-btn",
+  ) as HTMLButtonElement | null;
+  const stopBtn = document.getElementById(
+    "voice-stop-btn",
+  ) as HTMLButtonElement | null;
+  const voiceBars = voiceModeEl?.querySelectorAll(".voice-bar") as
     | NodeListOf<HTMLElement>
     | undefined;
 
-  if (!voiceBtn || !promptInput) return null;
+  if (
+    !micBtn ||
+    !promptForm ||
+    !promptContainer ||
+    !voiceModeEl ||
+    !promptInput
+  )
+    return null;
+
+  // Capture as non-null for use inside nested functions
+  const form = promptForm;
+  const container = promptContainer;
+  const voiceMode = voiceModeEl;
+  const input = promptInput;
 
   const voiceInput = new VoiceInput();
 
-  // Set up spectrum callback for equalizer visualization
+  // Spectrum visualization callback
   voiceInput.setSpectrumCallback((levels) => {
     if (voiceBars) {
       levels.forEach((level, i) => {
         if (voiceBars[i]) {
-          // Scale height: min 8px, max 36px
-          const height = 8 + level * 28;
+          const height = 4 + level * 28;
           voiceBars[i].style.height = `${height}px`;
         }
       });
     }
   });
 
+  // SpeechRecognition instance
+  const recognition = new SpeechRecognitionCtor();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+
   // Internal state
   let accumulatedTranscript = "";
-  let currentInterim = ""; // Current interim (tentative) transcript
-  let existingPromptText = ""; // Text in prompt before recording started
+  let currentInterim = "";
+  let existingPromptText = "";
   let isRecording = false;
   let status: VoiceStatus = "idle";
   let error: string | null = null;
-  let deepgramReady = false;
-  let connectionTimeout: number | null = null;
-  let cloudVoiceSocket: WebSocket | null = null; // Used on vibecraft.sh
 
-  // State object that will be exposed
+  // Exposed state object
   const voiceState: VoiceState = {
     input: voiceInput,
     isRecording: false,
@@ -111,7 +131,6 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
     toggle: toggleRecording,
   };
 
-  // Sync internal state to exposed state
   const syncState = () => {
     voiceState.isRecording = isRecording;
     voiceState.status = status;
@@ -120,80 +139,64 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
     deps.onStateChange?.(voiceState);
   };
 
-  // Update UI to reflect current status
-  const updateUI = () => {
-    switch (status) {
-      case "idle":
-        if (transcriptEl) transcriptEl.classList.remove("visible");
-        if (voiceControlEl) voiceControlEl.classList.remove("recording");
-        voiceBars?.forEach((bar) => {
-          bar.style.height = "8px";
-        });
-        break;
-      case "connecting":
-        if (voiceControlEl) voiceControlEl.classList.add("recording");
-        break;
-      case "recording":
-        if (transcriptEl) transcriptEl.classList.add("visible");
-        if (voiceControlEl) voiceControlEl.classList.add("recording");
-        if (transcriptLabelEl) {
-          transcriptLabelEl.innerHTML =
-            '<span class="recording-dot"></span> Listening...';
-        }
-        break;
-      case "error":
-        if (voiceControlEl) voiceControlEl.classList.remove("recording");
-        voiceBars?.forEach((bar) => {
-          bar.style.height = "8px";
-        });
-        if (transcriptEl && transcriptTextEl) {
-          transcriptEl.classList.add("visible");
-          transcriptTextEl.textContent = error || "Unknown error";
-          if (transcriptLabelEl) {
-            transcriptLabelEl.innerHTML = "⚠️ Error";
-          }
-          setTimeout(() => {
-            if (status === "error") {
-              status = "idle";
-              error = null;
-              updateUI();
-              syncState();
-            }
-          }, 3000);
-        }
-        break;
-    }
+  // ---- UI mode switching ----
+
+  /** Switch to voice mode: hide prompt container, show voice visualization */
+  function enterVoiceMode() {
+    container.style.display = "none";
+    voiceMode.classList.remove("hidden");
+  }
+
+  /** Switch back to text mode: show prompt container, hide voice visualization */
+  function exitVoiceMode() {
+    voiceMode.classList.add("hidden");
+    container.style.display = "";
+    // Reset bar heights
+    voiceBars?.forEach((bar) => {
+      bar.style.height = "4px";
+    });
+  }
+
+  // ---- Recording control ----
+
+  /** Start recording and enter voice mode */
+  async function startRecording(): Promise<boolean> {
+    status = "connecting";
+    existingPromptText = input.value.trim();
+    currentInterim = "";
+    enterVoiceMode();
     syncState();
-  };
 
-  // Set error state
-  const setError = (message: string) => {
-    status = "error";
-    error = message;
-    isRecording = false;
-    deepgramReady = false;
-    if (connectionTimeout) {
-      clearTimeout(connectionTimeout);
-      connectionTimeout = null;
+    // Start microphone for spectrum visualization
+    const started = await voiceInput.start(() => {
+      // No-op — SpeechRecognition handles transcription directly
+    });
+
+    if (!started) {
+      setError("Microphone access denied");
+      return false;
     }
-    voiceInput.stop();
 
-    // Close appropriate socket based on mode
-    if (isHostedSite()) {
-      if (cloudVoiceSocket) {
-        cloudVoiceSocket.close();
-        cloudVoiceSocket = null;
-      }
-    } else {
-      const socket = client.socket;
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "voice_stop" }));
-      }
+    // Configure language based on current locale
+    recognition.lang = getRecognitionLang();
+
+    try {
+      recognition.start();
+    } catch {
+      setError("Speech recognition failed to start");
+      voiceInput.stop();
+      return false;
     }
-    updateUI();
-  };
 
-  // Stop recording and return accumulated transcript
+    status = "recording";
+    isRecording = true;
+    accumulatedTranscript = "";
+    syncState();
+    if (soundEnabled()) soundManager.play("voice_start");
+    return true;
+  }
+
+  /** Stop recording and return accumulated transcript */
   function stopRecording(): Promise<string> {
     return new Promise((resolve) => {
       if (!isRecording) {
@@ -202,366 +205,214 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
       }
 
       voiceInput.stop();
-
-      // Close appropriate socket based on mode
-      if (isHostedSite()) {
-        if (cloudVoiceSocket) {
-          cloudVoiceSocket.send(JSON.stringify({ type: "voice_stop" }));
-          cloudVoiceSocket.close();
-          cloudVoiceSocket = null;
-        }
-      } else {
-        const socket = client.socket;
-        if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "voice_stop" }));
-        }
-      }
-
-      if (connectionTimeout) {
-        clearTimeout(connectionTimeout);
-        connectionTimeout = null;
+      try {
+        recognition.stop();
+      } catch {
+        // ignore
       }
 
       status = "idle";
       isRecording = false;
-      deepgramReady = false;
-      updateUI();
+      syncState();
 
       if (soundEnabled()) soundManager.play("voice_stop");
 
-      // Wait briefly for any final transcripts
+      // Wait briefly for any final results
       setTimeout(() => {
         const transcript = accumulatedTranscript;
         accumulatedTranscript = "";
         syncState();
-
-        if (!transcript && transcriptEl && transcriptTextEl) {
-          transcriptEl.classList.add("visible");
-          transcriptTextEl.textContent = "No speech detected";
-          if (transcriptLabelEl) {
-            transcriptLabelEl.innerHTML = "ℹ️ Info";
-          }
-          setTimeout(() => {
-            transcriptEl.classList.remove("visible");
-          }, 2000);
-        }
-
         resolve(transcript);
       }, 300);
     });
   }
 
-  // Get the socket to use for voice (cloud or local)
-  function getVoiceSocket(): WebSocket | null {
-    if (isHostedSite()) {
-      return cloudVoiceSocket;
-    }
-    return client.socket;
-  }
-
-  // Handle messages from cloud voice socket
-  function handleCloudVoiceMessage(event: MessageEvent) {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.type === "voice_status" && data.status === "listening") {
-        deepgramReady = true;
-        if (connectionTimeout) {
-          clearTimeout(connectionTimeout);
-          connectionTimeout = null;
-        }
-      } else if (data.type === "voice_transcript") {
-        handleTranscript(data);
-      } else if (data.type === "voice_error") {
-        setError(data.error || "Transcription error");
-      }
-    } catch {
-      // Ignore non-JSON messages
-    }
-  }
-
-  // Handle transcript data (used by both local and cloud)
-  function handleTranscript(data: {
-    transcript?: string;
-    is_final?: boolean;
-    speech_final?: boolean;
-  }) {
-    const transcript = data.transcript;
-    if (!transcript) return;
-
-    if (data.is_final || data.speech_final) {
-      // Final transcript - add to accumulated, clear interim
-      accumulatedTranscript += (accumulatedTranscript ? " " : "") + transcript;
-      currentInterim = "";
-    } else {
-      // Interim transcript - update current interim (will be replaced by next interim)
-      currentInterim = transcript;
-    }
-
-    // Update transcript display (floating label)
-    if (transcriptTextEl) {
-      const displayText =
-        accumulatedTranscript +
-        (currentInterim
-          ? (accumulatedTranscript ? " " : "") + currentInterim
-          : "");
-      transcriptTextEl.textContent = displayText || "Listening...";
-      if (transcriptLabelEl) {
-        transcriptLabelEl.textContent = data.is_final
-          ? "Transcript:"
-          : "Listening...";
-      }
-    }
-
-    // Stream to prompt input in real-time
-    if (promptInput) {
-      const parts: string[] = [];
-      if (existingPromptText) parts.push(existingPromptText);
-      if (accumulatedTranscript) parts.push(accumulatedTranscript);
-      if (currentInterim) parts.push(currentInterim);
-      promptInput.value = parts.join(" ");
-      promptInput.dispatchEvent(new Event("input")); // Trigger auto-resize
-    }
-
-    voiceState.accumulatedTranscript = accumulatedTranscript;
-    deps.onStateChange?.(voiceState);
-  }
-
-  // Start recording
-  async function startRecording(): Promise<boolean> {
-    status = "connecting";
-    deepgramReady = false;
-    // Capture existing text in prompt before we start adding transcript
-    existingPromptText = promptInput?.value.trim() ?? "";
-    currentInterim = "";
-    updateUI();
-
-    // For hosted site, create dedicated voice WebSocket
-    if (isHostedSite()) {
-      try {
-        cloudVoiceSocket = new WebSocket(getCloudVoiceUrl());
-
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(
-            () => reject(new Error("Connection timeout")),
-            5000,
-          );
-
-          cloudVoiceSocket!.onopen = () => {
-            clearTimeout(timeout);
-            cloudVoiceSocket!.send(JSON.stringify({ type: "voice_start" }));
-            resolve();
-          };
-
-          cloudVoiceSocket!.onerror = () => {
-            clearTimeout(timeout);
-            reject(new Error("Failed to connect to voice service"));
-          };
-
-          cloudVoiceSocket!.onmessage = handleCloudVoiceMessage;
-
-          cloudVoiceSocket!.onclose = () => {
-            if (isRecording) {
-              cancelRecording();
-            }
-          };
-        });
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Voice connection failed");
-        return false;
-      }
-    } else {
-      // Local mode - use EventClient socket
-      const socket = client.socket;
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        setError("Not connected to server");
-        return false;
-      }
-      socket.send(JSON.stringify({ type: "voice_start" }));
-    }
-
-    connectionTimeout = window.setTimeout(() => {
-      if (status === "connecting") {
-        setError("Transcription service timeout");
-      }
-    }, 5000);
-
-    const voiceSocket = getVoiceSocket();
-    const started = await voiceInput.start((audioData) => {
-      if (voiceSocket && voiceSocket.readyState === WebSocket.OPEN) {
-        voiceSocket.send(audioData);
-      }
-    });
-
-    if (!started) {
-      if (connectionTimeout) {
-        clearTimeout(connectionTimeout);
-        connectionTimeout = null;
-      }
-      setError("Microphone access denied");
-      if (voiceSocket?.readyState === WebSocket.OPEN) {
-        voiceSocket.send(JSON.stringify({ type: "voice_stop" }));
-      }
-      if (cloudVoiceSocket) {
-        cloudVoiceSocket.close();
-        cloudVoiceSocket = null;
-      }
-      return false;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    if (status === "connecting") {
-      status = "recording";
-      isRecording = true;
-      accumulatedTranscript = "";
-      updateUI();
-      if (soundEnabled()) soundManager.play("voice_start");
-    }
-
-    return true;
-  }
-
-  // Cancel recording without sending
+  /** Cancel recording without keeping transcript */
   function cancelRecording() {
     if (!isRecording && status !== "connecting") return;
 
     voiceInput.stop();
-
-    // Close appropriate socket based on mode
-    if (isHostedSite()) {
-      if (cloudVoiceSocket) {
-        cloudVoiceSocket.send(JSON.stringify({ type: "voice_stop" }));
-        cloudVoiceSocket.close();
-        cloudVoiceSocket = null;
-      }
-    } else {
-      const socket = client.socket;
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "voice_stop" }));
-      }
-    }
-
-    if (connectionTimeout) {
-      clearTimeout(connectionTimeout);
-      connectionTimeout = null;
+    try {
+      recognition.abort();
+    } catch {
+      // ignore
     }
 
     accumulatedTranscript = "";
     status = "idle";
     isRecording = false;
-    deepgramReady = false;
-    updateUI();
+    exitVoiceMode();
+    syncState();
 
     if (soundEnabled()) soundManager.play("voice_stop");
   }
 
-  // Toggle recording
+  /** Set error state and exit voice mode */
+  function setError(message: string) {
+    status = "error";
+    error = message;
+    isRecording = false;
+    voiceInput.stop();
+    try {
+      recognition.abort();
+    } catch {
+      // ignore
+    }
+    exitVoiceMode();
+    syncState();
+
+    // Clear error after a moment
+    setTimeout(() => {
+      if (status === "error") {
+        status = "idle";
+        error = null;
+        syncState();
+      }
+    }, 3000);
+  }
+
+  /** Toggle recording on/off */
   async function toggleRecording() {
     if (status === "error") {
       status = "idle";
       error = null;
-      updateUI();
+      syncState();
       return;
     }
 
     if (isRecording || status === "connecting") {
-      await stopRecording();
-      // Transcript is already streamed to promptInput in real-time, just focus
-      promptInput?.focus();
+      // Stop and put transcript in textarea (same as Stop button)
+      await handleStop();
     } else {
       await startRecording();
     }
   }
 
-  // Handle messages from server
-  client.onRawMessage((data) => {
-    if (data.type === "voice_ready") {
-      deepgramReady = true;
-      if (connectionTimeout) {
-        clearTimeout(connectionTimeout);
-        connectionTimeout = null;
-      }
-      if (status === "connecting") {
-        status = "recording";
-        isRecording = true;
-        updateUI();
-        if (soundEnabled()) soundManager.play("voice_start");
-      }
-    } else if (data.type === "voice_transcript") {
-      const { transcript, isFinal } = data.payload as {
-        transcript: string;
-        isFinal: boolean;
-      };
-      // Use shared handler for consistent streaming behavior
-      handleTranscript({ transcript, is_final: isFinal });
-      if (transcriptEl) transcriptEl.classList.toggle("interim", !isFinal);
-    } else if (data.type === "voice_utterance_end") {
-      // Utterance end - clear interim, transcript is already in promptInput
-      currentInterim = "";
-      syncState();
-    } else if (data.type === "voice_error") {
-      const payload = data.payload as { error?: string };
-      const errorMsg = payload?.error || "Transcription error";
+  // ---- Transcript handling ----
 
-      if (errorMsg.includes("not configured")) {
-        setError("Voice not configured (missing API key)");
-      } else if (errorMsg.includes("rate") || errorMsg.includes("limit")) {
-        setError("Rate limit exceeded");
+  function handleTranscript(data: { transcript?: string; is_final?: boolean }) {
+    const transcript = data.transcript;
+    if (!transcript) return;
+
+    if (data.is_final) {
+      accumulatedTranscript += (accumulatedTranscript ? " " : "") + transcript;
+      currentInterim = "";
+    } else {
+      currentInterim = transcript;
+    }
+
+    // Stream to prompt input in real-time (visible when user returns to text mode)
+    const parts: string[] = [];
+    if (existingPromptText) parts.push(existingPromptText);
+    if (accumulatedTranscript) parts.push(accumulatedTranscript);
+    if (currentInterim) parts.push(currentInterim);
+    input.value = parts.join(" ");
+    input.dispatchEvent(new Event("input")); // Trigger auto-resize
+
+    voiceState.accumulatedTranscript = accumulatedTranscript;
+    deps.onStateChange?.(voiceState);
+  }
+
+  // ---- SpeechRecognition events ----
+
+  recognition.onresult = (event: SpeechRecognitionEvent) => {
+    let finalTranscript = "";
+    let interimTranscript = "";
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) {
+        finalTranscript += result[0].transcript;
       } else {
-        setError(errorMsg);
+        interimTranscript += result[0].transcript;
       }
+    }
+
+    if (finalTranscript) {
+      handleTranscript({ transcript: finalTranscript, is_final: true });
+    }
+    if (interimTranscript) {
+      handleTranscript({ transcript: interimTranscript, is_final: false });
+    }
+  };
+
+  recognition.onend = () => {
+    // Chrome may stop on silence — restart if still recording
+    if (isRecording) {
+      try {
+        recognition.start();
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    if (event.error === "no-speech") return;
+    if (event.error === "aborted") return;
+
+    if (
+      event.error === "not-allowed" ||
+      event.error === "service-not-allowed"
+    ) {
+      setError("Microphone access denied");
+    } else if (event.error === "network") {
+      setError("Speech recognition network error");
+    } else {
+      setError(event.error);
+    }
+  };
+
+  // ---- Button handlers ----
+
+  /** Send button: stop recording + submit form immediately */
+  async function handleSend() {
+    const transcript = await stopRecording();
+    exitVoiceMode();
+
+    // Ensure transcript is in the input
+    if (transcript) {
+      const existing = existingPromptText;
+      input.value = existing ? existing + " " + transcript : transcript;
+      input.dispatchEvent(new Event("input"));
+    }
+
+    // Submit the form if there's text
+    if (input.value.trim()) {
+      form.requestSubmit();
+    } else {
+      input.focus();
+    }
+  }
+
+  /** Stop button: stop recording + return to text mode with transcript in textarea */
+  async function handleStop() {
+    await stopRecording();
+    exitVoiceMode();
+    // Transcript is already streamed to input in real-time
+    input.focus();
+  }
+
+  // Mic button — enter voice mode
+  micBtn.addEventListener("click", () => {
+    if (!isRecording && status !== "connecting") {
+      startRecording();
     }
   });
 
-  // Click to toggle
-  voiceBtn.addEventListener("click", toggleRecording);
+  // Send button in voice mode
+  sendBtn?.addEventListener("click", handleSend);
 
-  // Get form for global submit
-  const promptForm = document.getElementById(
-    "prompt-form",
-  ) as HTMLFormElement | null;
+  // Stop button in voice mode
+  stopBtn?.addEventListener("click", handleStop);
 
-  // Keyboard shortcuts
-  document.addEventListener("keydown", async (e) => {
-    // Voice toggle (Ctrl+M by default, user-configurable)
-    if (keybindManager.matches("voice-toggle", e)) {
-      e.preventDefault();
-      toggleRecording();
-      return;
-    }
-
-    // Escape to cancel recording (not configurable - standard behavior)
+  // Escape while in voice mode — cancel
+  document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && (isRecording || status === "connecting")) {
       e.preventDefault();
       e.stopPropagation();
       cancelRecording();
-      promptInput?.focus();
-      return;
-    }
-
-    // Enter stops voice recording and sends
-    if (e.key === "Enter" && !e.shiftKey && !e.altKey) {
-      // If recording, Enter stops and sends (voice-specific shortcut)
-      if (isRecording || status === "connecting") {
-        e.preventDefault();
-        await stopRecording();
-        // Transcript is already streamed to promptInput, just submit if there's text
-        if (promptInput?.value.trim() && promptForm) {
-          promptForm.requestSubmit();
-        }
-        return;
-      }
-
-      // Cmd/Ctrl+Enter to send from outside textarea
-      if (e.ctrlKey || e.metaKey) {
-        const activeEl = document.activeElement;
-        const isInTextArea =
-          activeEl?.tagName === "TEXTAREA" || activeEl?.tagName === "INPUT";
-        if (!isInTextArea && promptInput?.value.trim() && promptForm) {
-          e.preventDefault();
-          promptForm.requestSubmit();
-        }
-      }
+      input.focus();
     }
   });
 

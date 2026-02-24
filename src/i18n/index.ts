@@ -4,7 +4,6 @@
  * - Nested translation objects flattened to dot-notation keys
  * - `t('feed.thinking')` lookup with `{param}` interpolation
  * - `data-i18n` / `data-i18n-placeholder` / `data-i18n-title` for static HTML
- * - CSS custom property `--i18n-deepgram-hint` for CSS content strings
  * - Auto-detects browser language, persists choice in localStorage
  */
 
@@ -97,12 +96,6 @@ function updateDOMTranslations(): void {
     const key = el.getAttribute("data-i18n-html")!;
     el.innerHTML = t(key);
   });
-
-  // CSS custom property for content strings
-  document.documentElement.style.setProperty(
-    "--i18n-deepgram-hint",
-    `'${t("voice.deepgramHint")}'`,
-  );
 }
 
 /**

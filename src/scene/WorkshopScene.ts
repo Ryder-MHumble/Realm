@@ -16,6 +16,7 @@ import {
 } from "./ZoneNotifications";
 import { StationPanels } from "./StationPanels";
 import { drawMode } from "../ui/DrawMode";
+import { easeOutBack } from "../entities/animations";
 import {
   addBookshelfDetails,
   addTerminalDetails,
@@ -199,6 +200,9 @@ export class WorkshopScene {
     speed: number;
     radius: number;
     angle: number;
+    twinkleSpeed: number;
+    twinklePhase: number;
+    baseBrightness: number;
   }> = [];
 
   // Time accumulator for animations
@@ -224,6 +228,11 @@ export class WorkshopScene {
 
   // Hex hover highlight
   private hoverHighlight: THREE.Line | null = null;
+  private hoverFill: THREE.Mesh | null = null;
+  private hoverTargetPos = new THREE.Vector3();
+  private hoverLerpActive = false;
+  private hoverScalePhase = 0;
+  private hoverFillOpacity = 0;
 
   // Zone group connection lines (department boundaries)
   private groupLinks: Map<
@@ -348,6 +357,23 @@ export class WorkshopScene {
     this.hoverHighlight.visible = false;
     this.scene.add(this.hoverHighlight);
 
+    // Filled hex for subtle glow under the outline
+    const fillShape = this.createHexagonShape(hexRadius * 0.95);
+    const fillGeometry = new THREE.ShapeGeometry(fillShape);
+    const fillMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4ac8e8,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.hoverFill = new THREE.Mesh(fillGeometry, fillMaterial);
+    this.hoverFill.rotation.x = -Math.PI / 2;
+    this.hoverFill.position.y = 0.015;
+    this.hoverFill.visible = false;
+    this.scene.add(this.hoverFill);
+
     // Listen for mouse movement
     this.renderer.domElement.addEventListener("mousemove", this.handleHover);
     this.renderer.domElement.addEventListener(
@@ -393,20 +419,78 @@ export class WorkshopScene {
         }
       }
 
-      this.hoverHighlight.position.set(hexCenter.x, 0, hexCenter.z);
+      // Smooth lerp: set target instead of snapping
+      if (!this.hoverLerpActive) {
+        // First hover: snap immediately
+        this.hoverHighlight.position.set(hexCenter.x, 0, hexCenter.z);
+        if (this.hoverFill) {
+          this.hoverFill.position.x = hexCenter.x;
+          this.hoverFill.position.z = hexCenter.z;
+        }
+      }
+      this.hoverTargetPos.set(hexCenter.x, 0, hexCenter.z);
+      this.hoverLerpActive = true;
       this.hoverHighlight.visible = true;
     } else {
-      this.hoverHighlight.visible = false;
+      this.hoverLerpActive = false;
       this.lastHoveredHex = null;
     }
   };
 
   private handleHoverLeave = (): void => {
-    if (this.hoverHighlight) {
-      this.hoverHighlight.visible = false;
-    }
+    this.hoverLerpActive = false;
     this.lastHoveredHex = null;
   };
+
+  /**
+   * Smooth hover highlight update - lerps position, pulses scale, fades fill
+   */
+  private updateHoverHighlight(delta: number): void {
+    if (!this.hoverHighlight || !this.hoverFill) return;
+
+    if (this.hoverLerpActive) {
+      this.hoverHighlight.visible = true;
+      this.hoverFill.visible = true;
+
+      // Smooth position lerp (exponential interpolation)
+      const lerpFactor = 1 - Math.exp(-16 * delta);
+      this.hoverHighlight.position.lerp(this.hoverTargetPos, lerpFactor);
+      this.hoverFill.position.x = this.hoverHighlight.position.x;
+      this.hoverFill.position.z = this.hoverHighlight.position.z;
+
+      // Subtle scale pulse
+      this.hoverScalePhase += delta * 4;
+      const scalePulse = 1.0 + Math.sin(this.hoverScalePhase) * 0.03;
+      this.hoverHighlight.scale.setScalar(scalePulse);
+      this.hoverFill.scale.set(scalePulse, 1, scalePulse);
+
+      // Fade fill in
+      this.hoverFillOpacity = Math.min(
+        0.08,
+        this.hoverFillOpacity + delta * 0.5,
+      );
+      (this.hoverFill.material as THREE.MeshBasicMaterial).opacity =
+        this.hoverFillOpacity + Math.sin(this.hoverScalePhase) * 0.02;
+
+      // Ensure outline is at full opacity
+      (this.hoverHighlight.material as THREE.LineBasicMaterial).opacity = 0.7;
+    } else {
+      // Fade out
+      this.hoverFillOpacity = Math.max(0, this.hoverFillOpacity - delta * 1.5);
+      (this.hoverFill.material as THREE.MeshBasicMaterial).opacity =
+        this.hoverFillOpacity;
+
+      const outlineMat = this.hoverHighlight
+        .material as THREE.LineBasicMaterial;
+      outlineMat.opacity = Math.max(0, outlineMat.opacity - delta * 3);
+
+      if (this.hoverFillOpacity <= 0 && outlineMat.opacity <= 0) {
+        this.hoverHighlight.visible = false;
+        this.hoverFill.visible = false;
+        outlineMat.opacity = 0.7; // Reset for next show
+      }
+    }
+  }
 
   /**
    * Create a pending zone with loading animation
@@ -2232,39 +2316,49 @@ export class WorkshopScene {
    * Create ambient floating particles for atmosphere
    */
   private createAmbientParticles(): void {
-    const particleCount = 60;
+    const particleCount = 80;
     const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
 
-    // Initialize particles in a smaller area above zones
+    const baseColor = new THREE.Color(0x4ac8e8);
+
     for (let i = 0; i < particleCount; i++) {
-      const radius = 2 + Math.random() * 15; // Stay closer to center (2-17 units)
+      const radius = 2 + Math.random() * 15;
       const angle = Math.random() * Math.PI * 2;
-      const baseY = 6 + Math.random() * 12; // Float higher (6-18 units up)
+      const baseY = 6 + Math.random() * 12;
 
       positions[i * 3] = Math.cos(angle) * radius;
       positions[i * 3 + 1] = baseY;
       positions[i * 3 + 2] = Math.sin(angle) * radius;
 
-      // Store particle data for animation
+      colors[i * 3] = baseColor.r;
+      colors[i * 3 + 1] = baseColor.g;
+      colors[i * 3 + 2] = baseColor.b;
+
       this.ambientParticleData.push({
         baseY,
         phase: Math.random() * Math.PI * 2,
         speed: 0.3 + Math.random() * 0.5,
         radius,
         angle,
+        twinkleSpeed: 1.5 + Math.random() * 2.5,
+        twinklePhase: Math.random() * Math.PI * 2,
+        baseBrightness: 0.4 + Math.random() * 0.6,
       });
     }
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
     const material = new THREE.PointsMaterial({
-      color: 0x4ac8e8, // Cyan to match ice theme
+      vertexColors: true,
       size: 0.12,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.5,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      sizeAttenuation: true,
     });
 
     this.ambientParticles = new THREE.Points(geometry, material);
@@ -2279,6 +2373,21 @@ export class WorkshopScene {
 
     const positions = this.ambientParticles.geometry.attributes.position
       .array as Float32Array;
+    const colors = this.ambientParticles.geometry.attributes.color
+      .array as Float32Array;
+
+    // Cache zone positions for proximity tinting
+    const zonePositions: Array<{ x: number; z: number; color: THREE.Color }> =
+      [];
+    for (const zone of this.zones.values()) {
+      zonePositions.push({
+        x: zone.position.x,
+        z: zone.position.z,
+        color: new THREE.Color(zone.color),
+      });
+    }
+
+    const baseCyan = new THREE.Color(0x4ac8e8);
 
     for (let i = 0; i < this.ambientParticleData.length; i++) {
       const data = this.ambientParticleData[i];
@@ -2289,12 +2398,53 @@ export class WorkshopScene {
       // Float up and down
       const yOffset = Math.sin(this.time * data.speed + data.phase) * 1.5;
 
-      positions[i * 3] = Math.cos(data.angle) * data.radius;
+      const px = Math.cos(data.angle) * data.radius;
+      const pz = Math.sin(data.angle) * data.radius;
+
+      positions[i * 3] = px;
       positions[i * 3 + 1] = data.baseY + yOffset;
-      positions[i * 3 + 2] = Math.sin(data.angle) * data.radius;
+      positions[i * 3 + 2] = pz;
+
+      // Per-particle twinkle
+      const twinkle =
+        0.5 + 0.5 * Math.sin(this.time * data.twinkleSpeed + data.twinklePhase);
+      const brightness = data.baseBrightness * (0.3 + 0.7 * twinkle);
+
+      // Zone proximity color tinting
+      let r = baseCyan.r;
+      let g = baseCyan.g;
+      let b = baseCyan.b;
+
+      if (zonePositions.length > 0) {
+        let nearestDist = Infinity;
+        let nearestColor: THREE.Color | null = null;
+        for (const zp of zonePositions) {
+          const dx = px - zp.x;
+          const dz = pz - zp.z;
+          const distSq = dx * dx + dz * dz;
+          if (distSq < nearestDist) {
+            nearestDist = distSq;
+            nearestColor = zp.color;
+          }
+        }
+        nearestDist = Math.sqrt(nearestDist);
+
+        const tintRadius = 10;
+        if (nearestColor && nearestDist < tintRadius) {
+          const blend = (1 - nearestDist / tintRadius) * 0.35;
+          r = r * (1 - blend) + nearestColor.r * blend;
+          g = g * (1 - blend) + nearestColor.g * blend;
+          b = b * (1 - blend) + nearestColor.b * blend;
+        }
+      }
+
+      colors[i * 3] = r * brightness;
+      colors[i * 3 + 1] = g * brightness;
+      colors[i * 3 + 2] = b * brightness;
     }
 
     this.ambientParticles.geometry.attributes.position.needsUpdate = true;
+    this.ambientParticles.geometry.attributes.color.needsUpdate = true;
   }
 
   /**
@@ -2537,6 +2687,7 @@ export class WorkshopScene {
     // Collect ALL line segments into one array
     // LineSegments needs pairs: [start1, end1, start2, end2, ...]
     const vertices: number[] = [];
+    const colors: number[] = [];
 
     // Precompute hex corner angles (pointy-top orientation)
     const angles: number[] = [];
@@ -2544,15 +2695,27 @@ export class WorkshopScene {
       angles.push((Math.PI / 3) * i - Math.PI / 2);
     }
 
+    // Base cyan color: 0x4ac8e8 = RGB(74, 200, 232) normalized
+    const baseR = 0.29;
+    const baseG = 0.784;
+    const baseB = 0.91;
+
     // Iterate through hex coordinates in range
     for (let q = -gridRange; q <= gridRange; q++) {
       for (let r = -gridRange; r <= gridRange; r++) {
         // Skip if too far from center (keep it roughly circular)
-        // Uses cube coordinate constraint: |q| + |r| + |s| / 2 <= range
         if (Math.abs(q) + Math.abs(r) + Math.abs(-q - r) > gridRange * 2)
           continue;
 
         const { x, z } = this.hexGrid.axialToCartesian({ q, r });
+
+        // Distance-based brightness: bright center, dim edges
+        const hexDist = (Math.abs(q) + Math.abs(q + r) + Math.abs(r)) / 2;
+        const t = 1 - Math.min(hexDist / gridRange, 1);
+        const brightness = 0.12 + 0.88 * Math.pow(t, 1.8);
+        const cr = baseR * brightness;
+        const cg = baseG * brightness;
+        const cb = baseB * brightness;
 
         // Add 6 line segments for this hex
         for (let i = 0; i < 6; i++) {
@@ -2565,12 +2728,14 @@ export class WorkshopScene {
             0,
             z + hexRadius * Math.sin(startAngle),
           );
+          colors.push(cr, cg, cb);
           // End point
           vertices.push(
             x + hexRadius * Math.cos(endAngle),
             0,
             z + hexRadius * Math.sin(endAngle),
           );
+          colors.push(cr, cg, cb);
         }
       }
     }
@@ -2581,9 +2746,10 @@ export class WorkshopScene {
       "position",
       new THREE.Float32BufferAttribute(vertices, 3),
     );
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
 
     const material = new THREE.LineBasicMaterial({
-      color: 0x4ac8e8, // Cyan/ice blue
+      vertexColors: true,
       transparent: true,
       opacity: 0.35,
     });
@@ -2670,6 +2836,9 @@ export class WorkshopScene {
       // Update ambient floating particles
       this.updateAmbientParticles(delta);
 
+      // Update hover highlight smooth lerp
+      this.updateHoverHighlight(delta);
+
       // Update zone pulse effects and particles
       const zonesToFinalize: string[] = [];
       for (const zone of this.zones.values()) {
@@ -2677,27 +2846,50 @@ export class WorkshopScene {
         if (zone.animationState === "entering") {
           zone.animationProgress = Math.min(
             1,
-            (zone.animationProgress ?? 0) + delta * 2,
-          ); // 0.5 second animation
+            (zone.animationProgress ?? 0) + delta * 1.6,
+          ); // 0.625 second animation (slightly slower for drama)
 
-          // Ease out cubic for smooth deceleration
           const t = zone.animationProgress;
-          const eased = 1 - Math.pow(1 - t, 3);
+          // easeOutBack overshoots to ~1.05 then settles to 1.0
+          const eased = easeOutBack(t);
 
-          // Scale up the zone group
-          zone.group.scale.setScalar(eased);
+          // Scale up the zone group (clamp to prevent negative scale at t=0)
+          zone.group.scale.setScalar(Math.max(0.001, eased));
 
           // Fade in ring and floor
           const ringMat = zone.ring.material as THREE.MeshBasicMaterial;
           const floorMat = zone.floor.material as THREE.MeshStandardMaterial;
-          ringMat.opacity = eased * 0.4;
-          floorMat.opacity = eased;
+          // Ring: delay slightly, then flash brighter via easeOutBack overshoot
+          const ringDelay = 0.15;
+          if (t < ringDelay) {
+            ringMat.opacity = 0;
+          } else {
+            const ringT = Math.min(1, (t - ringDelay) / (1 - ringDelay));
+            ringMat.opacity = easeOutBack(ringT) * 0.4;
+          }
+          floorMat.opacity = Math.min(1, eased);
 
-          // Show stations and particles when mostly visible
-          if (t > 0.5) {
-            for (const station of zone.stations.values()) {
-              station.mesh.visible = true;
+          // Stagger station appearances with individual spring animations
+          const stationArray = Array.from(zone.stations.values());
+          const stationStartT = 0.35;
+          const stationInterval = 0.07;
+          for (let si = 0; si < stationArray.length; si++) {
+            const station = stationArray[si];
+            const stThreshold = stationStartT + si * stationInterval;
+            if (t > stThreshold) {
+              if (!station.mesh.visible) {
+                station.mesh.visible = true;
+                station.mesh.scale.setScalar(0.01);
+              }
+              const stProgress = Math.min(1, (t - stThreshold) / 0.25);
+              station.mesh.scale.setScalar(
+                Math.max(0.01, easeOutBack(stProgress)),
+              );
             }
+          }
+
+          // Show particles after first stations appear
+          if (t > 0.5) {
             zone.particles.visible = true;
           }
 
@@ -2710,6 +2902,13 @@ export class WorkshopScene {
           if (t >= 1) {
             zone.animationState = undefined;
             zone.animationProgress = undefined;
+            // Ensure all station scales are reset to 1.0
+            for (const station of zone.stations.values()) {
+              station.mesh.visible = true;
+              station.mesh.scale.setScalar(1);
+            }
+            zone.particles.visible = true;
+            if (zone.label) zone.label.visible = true;
           }
         } else if (zone.animationState === "exiting") {
           zone.animationProgress = Math.min(
@@ -2777,8 +2976,13 @@ export class WorkshopScene {
           zone.pulseIntensity = Math.max(0, zone.pulseIntensity - delta * 0.5);
           zone.ring.scale.setScalar(1 + zone.pulseIntensity * 0.05);
         } else {
-          // No pulse - reset scale
-          zone.ring.scale.setScalar(1);
+          // Idle breathing - continuous subtle pulse so zones feel alive
+          const breatheSpeed = 1.2;
+          const phaseOffset = zone.position.x * 0.3 + zone.position.z * 0.17;
+          const breathe =
+            Math.sin(this.time * breatheSpeed + phaseOffset) * 0.5 + 0.5;
+          zone.ring.scale.setScalar(1.0 + breathe * 0.012);
+          ringMat.opacity = 0.4 + breathe * 0.06;
         }
 
         // Update particles
@@ -3076,6 +3280,31 @@ export class WorkshopScene {
       type: "ring",
     });
 
+    // 1.5. Filled hex flash on the clicked hex center
+    const clickedCenter = this.hexGrid.axialToCartesian(clickedHex);
+    const flashShape = this.createHexagonShape(hexRadius * 0.92);
+    const flashGeometry = new THREE.ShapeGeometry(flashShape);
+    const flashMaterial = new THREE.MeshBasicMaterial({
+      color: 0xbbf4ff,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const flashMesh = new THREE.Mesh(flashGeometry, flashMaterial);
+    flashMesh.rotation.x = -Math.PI / 2;
+    flashMesh.position.set(clickedCenter.x, y + 0.005, clickedCenter.z);
+    this.scene.add(flashMesh);
+
+    this.clickPulses.push({
+      mesh: flashMesh,
+      age: 0,
+      maxAge: 0.3,
+      type: "hex",
+      startOpacity: 0.55,
+    });
+
     // 2. Hex wave - spawn each ring over time
     const spawnHexRing = (ringNum: number, strength: number) => {
       const hexes =
@@ -3187,10 +3416,11 @@ export class WorkshopScene {
         (pulse.mesh.material as THREE.Material).dispose();
         this.clickPulses.splice(i, 1);
       } else if (pulse.type === "ring") {
-        // Ring: expand and fade out
-        const scale = 1 + progress * 4;
+        // Ring: expand with ease-out curve for decelerating growth
+        const easedProgress = 1 - Math.pow(1 - progress, 2.5);
+        const scale = 1 + easedProgress * 4.5;
         pulse.mesh.scale.set(scale, scale, 1);
-        const opacity = 0.9 * (1 - progress * progress);
+        const opacity = 0.9 * Math.pow(1 - progress, 1.8);
         (pulse.mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
       } else if (pulse.type === "ripple") {
         // Ripple: appear at peak, fade to 0 with ease-out curve
@@ -3200,11 +3430,13 @@ export class WorkshopScene {
         const fade = Math.pow(1 - progress, 2);
         material.opacity = peakOpacity * fade;
       } else {
-        // Hex: pulse brightness then fade out
-        const pulsePhase = Math.sin(progress * Math.PI * 2) * 0.3;
-        const fadeOut = 1 - progress * progress;
-        const opacity = Math.min(1, (0.7 + pulsePhase) * fadeOut);
-        (pulse.mesh.material as THREE.LineBasicMaterial).opacity = opacity;
+        // Filled hex flash: bright start with smooth cubic fade-out
+        const material = pulse.mesh.material as THREE.MeshBasicMaterial;
+        const peakOpacity = pulse.startOpacity ?? 0.5;
+        const fade = Math.pow(1 - progress, 3);
+        material.opacity = peakOpacity * fade;
+        const shrink = 1.0 - progress * 0.08;
+        pulse.mesh.scale.set(shrink, 1, shrink);
       }
     }
   }

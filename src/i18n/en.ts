@@ -21,6 +21,7 @@ const en = {
     noZones: "No zones yet",
     noSession: "No session",
     newZone: "New Zone",
+    selectSessionHint: "Select a session to send prompts",
   },
 
   // Activity feed
@@ -39,6 +40,10 @@ const en = {
     emptyHint: "Create a zone to get started",
     pattern: "Pattern: {pattern}",
     query: "Query: {query}",
+    moreTools: "{n} more tools",
+    showDetails: "Show more",
+    hideDetails: "Show less",
+    noDetails: "No details",
   },
 
   // Time formatting
@@ -59,13 +64,9 @@ const en = {
     transcript: "Transcript:",
     error: "Error",
     noSpeech: "No speech detected",
-    notConnected: "Not connected to server",
-    timeout: "Transcription service timeout",
+    notSupported: "Voice input not supported in this browser",
     micDenied: "Microphone access denied",
-    connectionFailed: "Voice connection failed",
-    notConfigured: "Voice not configured (missing API key)",
-    rateLimit: "Rate limit exceeded",
-    deepgramHint: "Set DEEPGRAM_API_KEY in .env",
+    connectionFailed: "Speech recognition failed",
     sendHint: "to send",
     startVoice: "Start voice input",
   },
@@ -86,7 +87,9 @@ const en = {
     title: "New Zone",
     directory: "Directory",
     name: "Name",
-    mode: "Mode",
+    description: "Description",
+    descriptionPlaceholder: "What does this zone do? (optional)",
+    descriptionHint: "Helps route prompts to the right zone automatically",
     options: "Options",
     namePlaceholder: "Auto-filled from directory...",
     dirPlaceholder: "e.g. /home/user/my-project",
@@ -141,7 +144,7 @@ const en = {
     attachToSession: "Attach to session",
     voiceInput: "Voice Input",
     voiceHelp:
-      "To enable voice input, add your Deepgram API key to <code>.env</code>:",
+      "Press <kbd>Ctrl+M</kbd> or click the mic button to start voice input. Supports English and Chinese.",
   },
 
   // Question modal
@@ -300,6 +303,13 @@ const en = {
     antenna: "ANTENNA",
     portal: "PORTAL",
     taskboard: "TASKBOARD",
+  },
+
+  // File upload
+  fileUpload: {
+    attach: "Attach files",
+    uploading: "Uploading files...",
+    uploadFailed: "File upload failed",
   },
 
   // Tooltips

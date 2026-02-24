@@ -62,15 +62,99 @@
           </div>
         </div>
 
-        <!-- Voice Control (center bottom) -->
-        <div id="voice-control" class="voice-control">
-          <!-- Idle state: mic button with hint -->
-          <div class="voice-idle">
-            <button type="button" id="voice-btn" class="voice-trigger" data-i18n-title="voice.startVoice" title="Start voice input">🎤</button>
-            <span class="voice-hint"><kbd>Ctrl</kbd><kbd>M</kbd></span>
+        <!-- Draw Mode UI (bottom right of scene) -->
+        <div id="draw-indicator">
+          <span class="draw-mode-label" data-i18n="draw.label">DRAW MODE</span>
+          <span class="draw-mode-hint"><kbd>D</kbd> <span data-i18n="draw.exit">exit</span> · <kbd>X</kbd> <span data-i18n="draw.clear">clear</span> · <kbd>Q</kbd><kbd>E</kbd> <span data-i18n="draw.brush">brush</span> · <kbd>R</kbd> <span data-i18n="draw.threeD">3D</span></span>
+        </div>
+        <div id="draw-palette">
+          <!-- Populated by DrawMode.ts -->
+        </div>
+
+      </div>
+
+      <!-- Bottom Command Bar (floating overlay, AI-native layout) -->
+      <div id="command-bar" class="glass-panel">
+        <div id="prompt-section">
+          <!-- Session chip (compact dropdown, replaces session dock) -->
+          <div id="session-chip">
+            <button id="session-chip-btn">
+              <span id="session-chip-dot" class="pill-status"></span>
+              <span id="session-chip-label" data-i18n="commandBar.allSessions">All sessions</span>
+              <span class="session-chip-chevron">▾</span>
+            </button>
+            <div id="session-chip-dropdown" class="hidden">
+              <div class="session-option session-option-all active" data-session="all">
+                <span class="session-option-name" data-i18n="common.all">All</span>
+                <span class="session-option-hotkey">0</span>
+              </div>
+              <div id="session-options"><!-- Dynamic session options from JS --></div>
+              <button id="new-session-option" data-i18n-title="tooltip.newZone" title="New Zone">
+                <span class="session-option-icon">+</span>
+                <span data-i18n="commandBar.newZone">New Zone</span>
+              </button>
+            </div>
+            <span id="attention-badge" class="attention-badge hidden">0</span>
           </div>
-          <!-- Recording state: bars + dot -->
-          <div class="voice-recording">
+          <!-- Text mode (default) -->
+          <form id="prompt-form">
+            <div id="prompt-container">
+              <textarea id="prompt-input" data-i18n-placeholder="commandBar.placeholder" placeholder="Prompt..." autocomplete="off" rows="1"></textarea>
+              <div id="file-attachments" class="file-attachments hidden"></div>
+              <div id="prompt-actions">
+                <span id="prompt-target"></span>
+                <div id="mode-selector">
+                  <button type="button" id="mode-selector-btn" data-i18n-title="mode.switchMode" title="Switch Claude Code mode">
+                    <span id="mode-selector-icon"></span>
+                    <span id="mode-selector-label" data-i18n="mode.autoEdit">Auto-edit</span>
+                    <span class="mode-chevron">▾</span>
+                  </button>
+                  <div id="mode-selector-dropdown" class="hidden">
+                    <button type="button" class="mode-option" data-mode="auto-edit">
+                      <span class="mode-option-icon">⚡</span>
+                      <span class="mode-option-text">
+                        <span class="mode-option-label" data-i18n="mode.autoEdit">Auto-edit</span>
+                        <span class="mode-option-desc" data-i18n="mode.autoEditDesc">Edits files automatically</span>
+                      </span>
+                      <span class="mode-check">✓</span>
+                    </button>
+                    <button type="button" class="mode-option" data-mode="plan">
+                      <span class="mode-option-icon">📋</span>
+                      <span class="mode-option-text">
+                        <span class="mode-option-label" data-i18n="mode.plan">Plan</span>
+                        <span class="mode-option-desc" data-i18n="mode.planDesc">Plans before making changes</span>
+                      </span>
+                      <span class="mode-check">✓</span>
+                    </button>
+                    <button type="button" class="mode-option" data-mode="ask-before-edit">
+                      <span class="mode-option-icon">🔒</span>
+                      <span class="mode-option-text">
+                        <span class="mode-option-label" data-i18n="mode.askBeforeEdit">Ask before edit</span>
+                        <span class="mode-option-desc" data-i18n="mode.askBeforeEditDesc">Confirms each file change</span>
+                      </span>
+                      <span class="mode-check">✓</span>
+                    </button>
+                  </div>
+                </div>
+                <span class="prompt-action-spacer"></span>
+                <button type="button" id="file-upload-btn" class="file-upload-btn" data-i18n-title="fileUpload.attach" title="Attach files">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                  </svg>
+                </button>
+                <input type="file" id="file-upload-input" style="display:none" multiple accept="image/*,.txt,.md,.csv,.pdf">
+                <button type="button" id="voice-mode-btn" class="voice-mode-btn" data-i18n-title="voice.startVoice" title="Start voice input">🎤</button>
+                <button type="submit" id="prompt-submit">↗</button>
+                <button type="button" id="prompt-cancel">◼</button>
+              </div>
+            </div>
+          </form>
+          <!-- Voice mode (hidden, replaces prompt container when recording) -->
+          <div id="voice-mode" class="voice-mode hidden">
+            <div class="voice-mode-indicator">
+              <span class="voice-record-dot"></span>
+              <span class="voice-mode-text" data-i18n="voice.listening">Listening...</span>
+            </div>
             <div class="voice-bars">
               <div class="voice-bar" data-bar="0"></div>
               <div class="voice-bar" data-bar="1"></div>
@@ -83,91 +167,21 @@
               <div class="voice-bar" data-bar="8"></div>
               <div class="voice-bar" data-bar="9"></div>
             </div>
-            <div class="voice-status-row">
-              <div class="voice-record-dot"></div>
-              <span class="voice-send-hint"><kbd>⌘/Ctrl+Enter</kbd> to send</span>
+            <div class="voice-mode-actions">
+              <button type="button" id="voice-send-btn" class="voice-action-btn voice-action-send">↗ <span data-i18n="common.send">Send</span></button>
+              <button type="button" id="voice-stop-btn" class="voice-action-btn voice-action-stop">◼ <span data-i18n="common.stop">Stop</span></button>
             </div>
           </div>
-        </div>
-
-        <!-- Draw Mode UI (bottom right of scene) -->
-        <div id="draw-indicator">
-          <span class="draw-mode-label" data-i18n="draw.label">DRAW MODE</span>
-          <span class="draw-mode-hint"><kbd>D</kbd> <span data-i18n="draw.exit">exit</span> · <kbd>X</kbd> <span data-i18n="draw.clear">clear</span> · <kbd>Q</kbd><kbd>E</kbd> <span data-i18n="draw.brush">brush</span> · <kbd>R</kbd> <span data-i18n="draw.threeD">3D</span></span>
-        </div>
-        <div id="draw-palette">
-          <!-- Populated by DrawMode.ts -->
-        </div>
-
-      </div>
-
-      <!-- Bottom Command Bar (floating overlay) -->
-      <div id="command-bar" class="glass-panel">
-        <div id="session-dock">
-          <div class="session-pill session-pill-all active" data-session="all">
-            <span class="pill-hotkey">0</span>
-            <span class="pill-name" data-i18n="common.all">All</span>
-          </div>
-          <div id="session-pills"><!-- Dynamic pills from JS --></div>
-          <button id="new-session-pill" data-i18n-title="tooltip.newZone" title="New Zone">+</button>
-          <span id="attention-badge" class="attention-badge hidden">0</span>
-        </div>
-        <div class="command-bar-divider"></div>
-        <div id="prompt-section">
-          <div id="voice-transcript">
-            <div class="transcript-label"><span class="recording-dot"></span> <span data-i18n="voice.listening">Listening...</span></div>
-            <div id="voice-transcript-text"></div>
-          </div>
-          <form id="prompt-form">
-            <div class="input-wrapper">
-              <textarea id="prompt-input" data-i18n-placeholder="commandBar.placeholder" placeholder="Prompt..." autocomplete="off" rows="1"></textarea>
-            </div>
-            <button type="submit" id="prompt-submit">↗ <span data-i18n="common.send">Send</span></button>
-            <button type="button" id="prompt-cancel">◼ <span data-i18n="common.stop">Stop</span></button>
-          </form>
-          <div id="prompt-options">
-            <span id="prompt-target"></span>
-            <div id="mode-selector">
-              <button id="mode-selector-btn" data-i18n-title="mode.switchMode" title="Switch Claude Code mode">
-                <span id="mode-selector-icon"></span>
-                <span id="mode-selector-label" data-i18n="mode.autoEdit">Auto-edit</span>
-                <span class="mode-chevron">▾</span>
-              </button>
-              <div id="mode-selector-dropdown" class="hidden">
-                <button class="mode-option" data-mode="auto-edit">
-                  <span class="mode-option-icon">⚡</span>
-                  <span class="mode-option-text">
-                    <span class="mode-option-label" data-i18n="mode.autoEdit">Auto-edit</span>
-                    <span class="mode-option-desc" data-i18n="mode.autoEditDesc">Edits files automatically</span>
-                  </span>
-                  <span class="mode-check">✓</span>
-                </button>
-                <button class="mode-option" data-mode="plan">
-                  <span class="mode-option-icon">📋</span>
-                  <span class="mode-option-text">
-                    <span class="mode-option-label" data-i18n="mode.plan">Plan</span>
-                    <span class="mode-option-desc" data-i18n="mode.planDesc">Plans before making changes</span>
-                  </span>
-                  <span class="mode-check">✓</span>
-                </button>
-                <button class="mode-option" data-mode="ask-before-edit">
-                  <span class="mode-option-icon">🔒</span>
-                  <span class="mode-option-text">
-                    <span class="mode-option-label" data-i18n="mode.askBeforeEdit">Ask before edit</span>
-                    <span class="mode-option-desc" data-i18n="mode.askBeforeEditDesc">Confirms each file change</span>
-                  </span>
-                  <span class="mode-check">✓</span>
-                </button>
-              </div>
-            </div>
+          <div id="prompt-status-bar">
             <span id="prompt-status"></span>
           </div>
         </div>
-        <div class="command-bar-divider"></div>
-        <button id="feed-toggle-btn" class="feed-toggle active" data-i18n-title="tooltip.toggleFeed" title="Toggle Activity Feed (Tab)">
-          <span class="feed-toggle-icon">📋</span>
-        </button>
       </div>
+
+      <!-- Floating feed toggle (outside command bar) -->
+      <button id="feed-toggle-floating" class="feed-toggle-float active" data-i18n-title="tooltip.toggleFeed" title="Toggle Activity Feed (Tab)">
+        <span class="feed-toggle-icon">📋</span>
+      </button>
 
       <!-- Activity Feed Drawer (right-side slide-out, starts closed) -->
       <div id="feed-drawer">
@@ -181,7 +195,7 @@
         <div id="activity-feed-wrapper">
           <div id="activity-feed">
             <div id="feed-empty">
-              <div id="feed-empty-icon">🛠️</div>
+              <div id="feed-empty-orb"></div>
               <h3 data-i18n="feed.emptyTitle">Waiting for activity</h3>
               <p data-i18n="feed.emptyDesc">Start using Claude Code to see events here</p>
               <p class="feed-empty-hint" data-i18n="feed.emptyHint">Create a zone to get started</p>
@@ -211,33 +225,22 @@
         </div>
 
         <div class="modal-field">
-          <label data-i18n="newZone.mode">Mode</label>
-          <div class="modal-radio-group">
-            <label class="modal-radio" data-mode="auto-edit">
-              <input type="radio" name="session-mode" value="auto-edit" checked />
-              <div class="radio-content">
-                <span class="radio-label" data-i18n="mode.autoEdit">Auto-edit</span>
-                <span class="radio-desc" data-i18n="mode.autoEditDesc">Edits files without asking</span>
-              </div>
-            </label>
-            <label class="modal-radio" data-mode="plan">
-              <input type="radio" name="session-mode" value="plan" />
-              <div class="radio-content">
-                <span class="radio-label" data-i18n="mode.plan">Plan</span>
-                <span class="radio-desc" data-i18n="mode.planDesc">Plans before making changes</span>
-              </div>
-            </label>
-            <label class="modal-radio" data-mode="ask-before-edit">
-              <input type="radio" name="session-mode" value="ask-before-edit" />
-              <div class="radio-content">
-                <span class="radio-label" data-i18n="mode.askBeforeEdit">Ask before edit</span>
-                <span class="radio-desc" data-i18n="mode.askBeforeEditDesc">Confirms each file change</span>
-              </div>
-            </label>
-          </div>
+          <label for="session-description-input" data-i18n="newZone.description">Description</label>
+          <textarea id="session-description-input" rows="2" data-i18n-placeholder="newZone.descriptionPlaceholder" placeholder="What does this zone do? (optional)"></textarea>
+          <div class="field-hint" data-i18n="newZone.descriptionHint">Helps route prompts to the right zone automatically</div>
         </div>
 
         <div class="modal-field">
+          <label for="session-agent-type">Agent Type</label>
+          <select id="session-agent-type" class="modal-select">
+            <option value="claude_code" selected>Claude Code</option>
+            <option value="nanoclaw">NanoClaw</option>
+            <option value="zeroclaw">ZeroClaw</option>
+            <option value="openclaw">OpenClaw</option>
+          </select>
+        </div>
+
+        <div class="modal-field" id="claude-code-options">
           <label data-i18n="newZone.options">Options</label>
           <div class="modal-checkboxes">
             <label class="modal-checkbox">
@@ -380,10 +383,7 @@
 
         <div class="about-section">
           <div class="about-section-title" data-i18n="about.voiceInput">Voice Input</div>
-          <p class="about-help-text" data-i18n-html="about.voiceHelp">To enable voice input, add your Deepgram API key to <code>.env</code>:</p>
-          <div class="about-commands">
-            <div class="about-cmd"><code>DEEPGRAM_API_KEY=your_key_here</code></div>
-          </div>
+          <p class="about-help-text" data-i18n-html="about.voiceHelp">Press <kbd>Ctrl+M</kbd> or click the mic button to start voice input. Supports English and Chinese.</p>
         </div>
 
         <div class="about-footer">

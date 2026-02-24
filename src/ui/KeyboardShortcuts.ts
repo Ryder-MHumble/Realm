@@ -155,7 +155,7 @@ export function setupKeyboardShortcuts(ctx: KeyboardShortcutContext): void {
       const feedDrawer = document.getElementById("feed-drawer");
       const canvas = scene?.renderer?.domElement;
 
-      const feedToggleBtn = document.getElementById("feed-toggle-btn");
+      const feedToggleBtn = document.getElementById("feed-toggle-floating");
       if (inInput) {
         // Currently in feed/prompt area - close drawer, focus canvas
         (e.target as HTMLElement).blur();

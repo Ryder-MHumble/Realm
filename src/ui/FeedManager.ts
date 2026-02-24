@@ -1,8 +1,10 @@
 /**
- * FeedManager - Manages the activity feed panel
+ * FeedManager - Manages the activity feed panel (AI-native conversation layout)
  *
  * Handles:
- * - Adding events to the feed (prompts, tool uses, responses)
+ * - Grouping events into conversation turns (user prompt → tool chain → response)
+ * - Compact tool chain rendering (click to expand)
+ * - Chat-bubble style for prompts and responses
  * - Filtering by session
  * - Auto-scroll behavior
  * - Scroll-to-bottom button
@@ -15,6 +17,9 @@ import type {
   PreToolUseEvent,
   PostToolUseEvent,
 } from "../../shared/types";
+
+/** Max visible tool chain items before auto-collapse */
+const TOOL_CHAIN_COLLAPSE_THRESHOLD = 5;
 
 export class FeedManager {
   private feedEl: HTMLElement | null = null;
@@ -35,10 +40,8 @@ export class FeedManager {
   // Thinking indicator per session
   private thinkingIndicators = new Map<string, HTMLElement>();
 
-  // Track assistant text to avoid duplicates in parallel tool calls
-  private lastAssistantText: string | null = null;
-  private lastAssistantTextTime = 0;
-  private readonly ASSISTANT_TEXT_DEDUP_WINDOW = 2000; // ms
+  // Track cumulative assistant text per turn for delta computation
+  private currentTurnCumulativeText = "";
 
   // Scrollbar auto-hide
   private scrollHideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -46,6 +49,13 @@ export class FeedManager {
   // Animation stagger for rapid-fire additions
   private lastAddTime = 0;
   private batchIndex = 0;
+
+  // Turn grouping state
+  private currentTurnGroup: HTMLElement | null = null;
+  private currentTurnSessionId: string | null = null;
+  private currentToolChain: HTMLElement | null = null;
+  private toolChainItemCount = 0;
+  private toolChainCollapsed = false;
 
   constructor() {
     this.feedEl = document.getElementById("activity-feed");
@@ -64,10 +74,9 @@ export class FeedManager {
    */
   private shortenPath(path: string): string {
     if (!this.cwd || !path) return path;
-    // Normalize: remove trailing slash from cwd
     const cwdNorm = this.cwd.endsWith("/") ? this.cwd.slice(0, -1) : this.cwd;
     if (path.startsWith(cwdNorm + "/")) {
-      return path.slice(cwdNorm.length + 1); // +1 for the slash
+      return path.slice(cwdNorm.length + 1);
     }
     return path;
   }
@@ -78,10 +87,8 @@ export class FeedManager {
   setupScrollButton(): void {
     if (!this.feedEl || !this.scrollBtn) return;
 
-    // Update button visibility on scroll + auto-hide scrollbar
     this.feedEl.addEventListener("scroll", () => {
       this.updateScrollButton();
-      // Show scrollbar on scroll, hide after 1.5s of inactivity
       this.feedEl!.classList.add("scrolling");
       if (this.scrollHideTimer) clearTimeout(this.scrollHideTimer);
       this.scrollHideTimer = setTimeout(() => {
@@ -89,7 +96,6 @@ export class FeedManager {
       }, 1500);
     });
 
-    // Click to scroll to bottom
     this.scrollBtn.addEventListener("click", () => this.scrollToBottom());
   }
 
@@ -101,42 +107,53 @@ export class FeedManager {
   }
 
   /**
-   * Filter feed items by session ID
+   * Filter feed items by session ID — operates on turn-groups and standalone items
    */
   setFilter(sessionId: string | null): void {
     if (!this.feedEl) return;
 
     this.activeFilter = sessionId;
 
-    this.feedEl.querySelectorAll(".feed-item").forEach((item) => {
-      const itemEl = item as HTMLElement;
-      const itemSession = itemEl.dataset.sessionId;
-
-      // Show all if no filter, or show matching session
-      const shouldShow = sessionId === null || itemSession === sessionId;
+    // Filter turn-groups
+    this.feedEl.querySelectorAll(".turn-group").forEach((group) => {
+      const groupEl = group as HTMLElement;
+      const groupSession = groupEl.dataset.sessionId;
+      const shouldShow = sessionId === null || groupSession === sessionId;
 
       if (!shouldShow) {
-        // Hide immediately - animation-based hiding was unreliable because
-        // .tool-pending and .thinking-indicator have same-specificity animations
-        // that override .exiting's slideOutDown, causing animationend to never fire
-        itemEl.style.display = "none";
-        itemEl.classList.remove("exiting");
-      } else if (shouldShow && itemEl.style.display === "none") {
-        // Show with entrance animation
-        itemEl.style.display = "";
-        itemEl.style.animation = "none";
-        // Force reflow to restart animation
-        void itemEl.offsetHeight;
-        itemEl.style.animation = "";
+        groupEl.style.display = "none";
+      } else if (groupEl.style.display === "none") {
+        groupEl.style.display = "";
+        groupEl.style.animation = "none";
+        void groupEl.offsetHeight;
+        groupEl.style.animation = "";
       }
     });
 
-    // Auto-scroll to bottom when switching sessions
+    // Also filter standalone items (backward compat)
+    this.feedEl
+      .querySelectorAll(".feed-item:not(.turn-group .feed-item)")
+      .forEach((item) => {
+        const itemEl = item as HTMLElement;
+        const itemSession = itemEl.dataset.sessionId;
+        const shouldShow = sessionId === null || itemSession === sessionId;
+
+        if (!shouldShow) {
+          itemEl.style.display = "none";
+          itemEl.classList.remove("exiting");
+        } else if (itemEl.style.display === "none") {
+          itemEl.style.display = "";
+          itemEl.style.animation = "none";
+          void itemEl.offsetHeight;
+          itemEl.style.animation = "";
+        }
+      });
+
     this.scrollToBottom();
   }
 
   /**
-   * Scroll feed to bottom (deferred to next frame for accurate scrollHeight)
+   * Scroll feed to bottom
    */
   scrollToBottom(): void {
     requestAnimationFrame(() => {
@@ -169,26 +186,108 @@ export class FeedManager {
   }
 
   /**
+   * Ensure a turn group container exists for the given session
+   */
+  private ensureTurnGroup(sessionId: string): HTMLElement {
+    if (this.currentTurnGroup && this.currentTurnSessionId === sessionId) {
+      return this.currentTurnGroup;
+    }
+
+    // Create a new turn group
+    const group = document.createElement("div");
+    group.className = "turn-group active";
+    group.dataset.sessionId = sessionId;
+
+    this.currentTurnGroup = group;
+    this.currentTurnSessionId = sessionId;
+    this.currentToolChain = null;
+    this.toolChainItemCount = 0;
+    this.toolChainCollapsed = false;
+    this.currentTurnCumulativeText = "";
+
+    this.feedEl!.appendChild(group);
+
+    // Apply filter
+    if (this.activeFilter !== null && sessionId !== this.activeFilter) {
+      group.style.display = "none";
+    }
+
+    return group;
+  }
+
+  /**
+   * Ensure a tool chain container exists in the current turn group
+   */
+  private ensureToolChain(sessionId: string): HTMLElement {
+    const group = this.ensureTurnGroup(sessionId);
+
+    if (this.currentToolChain) {
+      return this.currentToolChain;
+    }
+
+    const chain = document.createElement("div");
+    chain.className = "tool-chain";
+    group.appendChild(chain);
+
+    this.currentToolChain = chain;
+    this.toolChainItemCount = 0;
+    this.toolChainCollapsed = false;
+
+    return chain;
+  }
+
+  /**
+   * Close the current turn group (marks it as inactive)
+   */
+  private closeTurnGroup(): void {
+    if (this.currentTurnGroup) {
+      this.currentTurnGroup.classList.remove("active");
+    }
+    this.currentTurnGroup = null;
+    this.currentTurnSessionId = null;
+    this.currentToolChain = null;
+    this.toolChainItemCount = 0;
+    this.toolChainCollapsed = false;
+    this.currentTurnCumulativeText = "";
+  }
+
+  /**
+   * Compute delta text when fullText is not a simple prefix extension.
+   * Finds longest common prefix and returns the remainder.
+   */
+  private computeFuzzyDelta(previousText: string, fullText: string): string {
+    let commonLen = 0;
+    const minLen = Math.min(previousText.length, fullText.length);
+    for (let i = 0; i < minLen; i++) {
+      if (previousText[i] === fullText[i]) {
+        commonLen = i + 1;
+      } else {
+        break;
+      }
+    }
+
+    if (commonLen > previousText.length * 0.5) {
+      return fullText.slice(commonLen).trim();
+    }
+
+    // Texts diverged significantly — show full new text
+    return fullText;
+  }
+
+  /**
    * Show a "thinking" indicator for a session
    */
-  showThinking(sessionId: string, sessionColor?: number): void {
+  showThinking(sessionId: string, _sessionColor?: number): void {
     if (!this.feedEl) return;
-
-    // Don't show duplicate thinking indicators
     if (this.thinkingIndicators.has(sessionId)) return;
 
     this.removeEmptyState();
 
+    const group = this.ensureTurnGroup(sessionId);
+
     const item = document.createElement("div");
     item.className = "feed-item thinking-indicator";
     item.dataset.sessionId = sessionId;
-
-    // Apply session color as left border
-    if (sessionColor !== undefined) {
-      item.style.borderLeftColor = `#${sessionColor.toString(16).padStart(6, "0")}`;
-      item.style.borderLeftWidth = "3px";
-      item.style.borderLeftStyle = "solid";
-    }
 
     item.innerHTML = `
       <div class="feed-item-header">
@@ -199,11 +298,10 @@ export class FeedManager {
     `;
 
     this.thinkingIndicators.set(sessionId, item);
-    this.feedEl.appendChild(item);
+    group.appendChild(item);
 
-    // Apply filter
     if (this.activeFilter !== null && sessionId !== this.activeFilter) {
-      item.style.display = "none";
+      // Already handled by turn group visibility
     } else {
       this.scrollToBottom();
     }
@@ -220,7 +318,6 @@ export class FeedManager {
         this.thinkingIndicators.delete(sessionId);
       }
     } else {
-      // Remove all thinking indicators
       for (const indicator of this.thinkingIndicators.values()) {
         indicator.remove();
       }
@@ -239,9 +336,112 @@ export class FeedManager {
   }
 
   /**
+   * Create a compact tool chain item element
+   */
+  private createCompactToolItem(
+    e: PreToolUseEvent,
+    event: ClaudeEvent,
+  ): HTMLElement {
+    const item = document.createElement("div");
+    item.className = "tool-chain-item pending";
+    item.dataset.toolUseId = e.toolUseId;
+    item.dataset.sessionId = event.sessionId;
+    item.dataset.eventId = event.id;
+
+    const input = e.toolInput as Record<string, unknown>;
+    const filePath =
+      (input.file_path as string) ?? (input.path as string) ?? "";
+    const command = (input.command as string) ?? "";
+    const pattern = (input.pattern as string) ?? "";
+    const query = (input.query as string) ?? "";
+    const shortFile = this.shortenPath(filePath);
+
+    // Pick the best preview text
+    let previewText = "";
+    if (shortFile) {
+      previewText = shortFile;
+    } else if (command) {
+      previewText = command.split("\n")[0].slice(0, 60);
+    } else if (pattern) {
+      previewText = pattern;
+    } else if (query) {
+      previewText = query.slice(0, 50);
+    }
+
+    item.innerHTML = `
+      <span class="tool-icon">${getToolIcon(e.tool)}</span>
+      <span class="tool-name">${escapeHtml(e.tool)}</span>
+      <span class="tool-file">${escapeHtml(previewText)}</span>
+      <span class="tool-duration"></span>
+    `;
+
+    // Click to toggle detail panel
+    item.addEventListener("click", () => {
+      const existing = item.nextElementSibling;
+      if (existing?.classList.contains("tool-chain-detail")) {
+        existing.remove();
+      } else {
+        const detail = document.createElement("div");
+        detail.className = "tool-chain-detail";
+        detail.innerHTML = this.createToolDetailHTML(e);
+        item.after(detail);
+      }
+    });
+
+    return item;
+  }
+
+  /**
+   * Create HTML for tool detail panel (shown when clicking a compact tool item)
+   */
+  private createToolDetailHTML(e: PreToolUseEvent): string {
+    const input = e.toolInput as Record<string, unknown>;
+    const filePath =
+      (input.file_path as string) ?? (input.path as string) ?? "";
+    const command = (input.command as string) ?? "";
+    const content =
+      (input.content as string) ?? (input.new_string as string) ?? "";
+    const pattern = (input.pattern as string) ?? "";
+    const query = (input.query as string) ?? "";
+
+    const parts: string[] = [];
+
+    if (filePath) {
+      parts.push(
+        `<div class="feed-item-file">${escapeHtml(this.shortenPath(filePath))}</div>`,
+      );
+    }
+    if (command) {
+      parts.push(
+        `<div class="feed-item-code">${escapeHtml(command.slice(0, 300))}</div>`,
+      );
+    }
+    if (content) {
+      parts.push(
+        `<div class="feed-item-code">${escapeHtml(content.slice(0, 300))}</div>`,
+      );
+    }
+    if (pattern) {
+      parts.push(
+        `<div class="feed-item-file">${t("feed.pattern", { pattern: escapeHtml(pattern) })}</div>`,
+      );
+    }
+    if (query) {
+      parts.push(
+        `<div class="feed-item-file">${t("feed.query", { query: escapeHtml(query.slice(0, 200)) })}</div>`,
+      );
+    }
+
+    return (
+      parts.join("") ||
+      `<div class="feed-item-file">${t("feed.noDetails")}</div>`
+    );
+  }
+
+  /**
    * Add an event to the feed
    */
-  add(event: ClaudeEvent, sessionColor?: number): void {
+  add(event: ClaudeEvent, _sessionColor?: number): void {
     if (!this.feedEl) return;
 
     // Skip duplicates
@@ -252,24 +452,16 @@ export class FeedManager {
 
     this.removeEmptyState();
 
-    const item = document.createElement("div");
-    item.className = "feed-item";
-    item.dataset.eventId = event.id;
-    item.dataset.sessionId = event.sessionId;
-
-    // Apply session color as left border
-    if (sessionColor !== undefined) {
-      item.style.borderLeftColor = `#${sessionColor.toString(16).padStart(6, "0")}`;
-      item.style.borderLeftWidth = "3px";
-      item.style.borderLeftStyle = "solid";
-    }
+    // Check scroll position BEFORE adding
+    const shouldScroll =
+      event.type === "user_prompt_submit" || this.isNearBottom();
 
     switch (event.type) {
       case "user_prompt_submit": {
         const e = event as { prompt?: string; timestamp: number };
         const promptText = e.prompt ?? "";
 
-        // Skip duplicate prompts (same session + same text)
+        // Skip duplicate prompts
         const allPrompts = this.feedEl.querySelectorAll(
           ".feed-item.user-prompt",
         );
@@ -285,7 +477,14 @@ export class FeedManager {
             return;
         }
 
-        item.classList.add("user-prompt");
+        // Start a new turn group for each user prompt
+        this.closeTurnGroup();
+        const group = this.ensureTurnGroup(event.sessionId);
+
+        const item = document.createElement("div");
+        item.className = "feed-item user-prompt";
+        item.dataset.eventId = event.id;
+        item.dataset.sessionId = event.sessionId;
         item.innerHTML = `
           <div class="feed-item-header">
             <div class="feed-item-icon">💬</div>
@@ -294,6 +493,7 @@ export class FeedManager {
           </div>
           <div class="feed-item-content prompt-text">${escapeHtml(promptText)}</div>
         `;
+        group.appendChild(item);
         break;
       }
 
@@ -305,113 +505,140 @@ export class FeedManager {
           return;
         }
 
-        item.classList.add("tool-use", "tool-pending");
-        item.dataset.toolUseId = e.toolUseId;
-
-        const input = e.toolInput as Record<string, unknown>;
-        const filePath =
-          (input.file_path as string) ?? (input.path as string) ?? "";
-        const command = (input.command as string) ?? "";
-        const content =
-          (input.content as string) ?? (input.new_string as string) ?? "";
-        const pattern = (input.pattern as string) ?? "";
-        const query = (input.query as string) ?? "";
-
-        // Check if this is an MCP tool with no useful preview - make it compact
-        const hasPreview = filePath || command || content || pattern || query;
-        if (!hasPreview) {
-          item.classList.add("compact");
-        }
-
-        let preview = "";
-        if (filePath) {
-          preview = `<div class="feed-item-file">${escapeHtml(this.shortenPath(filePath))}</div>`;
-        } else if (command) {
-          preview = `<div class="feed-item-code">${escapeHtml(command)}</div>`;
-        } else if (pattern) {
-          preview = `<div class="feed-item-file">${t("feed.pattern", { pattern: escapeHtml(pattern) })}</div>`;
-        } else if (query) {
-          preview = `<div class="feed-item-file">${t("feed.query", { query: escapeHtml(query.slice(0, 100)) })}</div>`;
-        }
-
-        let details = "";
-        if (content) {
-          const truncated =
-            content.length > 500 ? content.slice(0, 500) + "..." : content;
-          details = `
-            <div class="feed-item-details collapsed" id="details-${e.toolUseId}">
-              <div class="feed-item-code">${escapeHtml(truncated)}</div>
-            </div>
-            <div class="expand-toggle" data-target="details-${e.toolUseId}">▶ ${t("feed.showContent")}</div>
-          `;
-        }
-
-        // Show assistant text if present (text Claude wrote before tool call)
-        // Deduplicate: parallel tool calls share the same text, only show once
-        let assistantTextHtml = "";
+        // Show assistant text delta inline in tool chain
         if (e.assistantText && e.assistantText.trim()) {
-          const now = Date.now();
-          const isDuplicate =
-            this.lastAssistantText === e.assistantText &&
-            now - this.lastAssistantTextTime < this.ASSISTANT_TEXT_DEDUP_WINDOW;
+          const fullText = e.assistantText.trim();
+          const previousText = this.currentTurnCumulativeText;
 
-          if (!isDuplicate) {
-            this.lastAssistantText = e.assistantText;
-            this.lastAssistantTextTime = now;
+          let deltaText = "";
+          if (!previousText) {
+            deltaText = fullText;
+          } else if (fullText === previousText) {
+            deltaText = "";
+          } else if (fullText.startsWith(previousText)) {
+            deltaText = fullText.slice(previousText.length).trim();
+          } else {
+            deltaText = this.computeFuzzyDelta(previousText, fullText);
+          }
 
-            const isLong = e.assistantText.length > 400;
-            const textContent = renderMarkdown(e.assistantText);
-            assistantTextHtml = `
-              <div class="feed-item-assistant-text ${isLong ? "collapsed" : ""}" id="assistant-text-${e.toolUseId}">
-                ${textContent}
-              </div>
-              ${isLong ? `<div class="expand-toggle" data-target="assistant-text-${e.toolUseId}">▶ Show more</div>` : ""}
-            `;
+          if (deltaText) {
+            this.currentTurnCumulativeText = fullText;
+
+            const chain = this.ensureToolChain(event.sessionId);
+            const textEl = document.createElement("div");
+            textEl.className = "tool-chain-text";
+            const isLong = deltaText.length > 300;
+            if (isLong) {
+              textEl.classList.add("collapsed");
+            }
+            textEl.innerHTML = renderMarkdown(deltaText);
+
+            if (isLong) {
+              const toggle = document.createElement("span");
+              toggle.className = "tool-chain-text-toggle";
+              toggle.textContent = `... ${t("feed.showDetails")}`;
+              toggle.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                const wasCollapsed = textEl.classList.toggle("collapsed");
+                toggle.textContent = wasCollapsed
+                  ? `... ${t("feed.showDetails")}`
+                  : t("feed.hideDetails");
+              });
+              textEl.appendChild(toggle);
+            }
+
+            if (this.toolChainCollapsed) {
+              textEl.style.display = "none";
+              chain.insertBefore(
+                textEl,
+                chain.querySelector(".tool-chain-summary"),
+              );
+            } else {
+              chain.appendChild(textEl);
+            }
           }
         }
 
-        item.innerHTML = `
-          ${assistantTextHtml}
-          <div class="feed-item-header">
-            <div class="feed-item-icon">${getToolIcon(e.tool)}</div>
-            <div class="feed-item-title">${e.tool}</div>
-            <div class="feed-item-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
-          </div>
-          ${preview}
-          ${details}
-        `;
+        // Add compact tool chain item
+        const chain = this.ensureToolChain(event.sessionId);
+        this.toolChainItemCount++;
+
+        const compactItem = this.createCompactToolItem(e, event);
+
+        // Auto-collapse after threshold
+        if (
+          this.toolChainItemCount > TOOL_CHAIN_COLLAPSE_THRESHOLD &&
+          !this.toolChainCollapsed
+        ) {
+          this.toolChainCollapsed = true;
+          const summary = document.createElement("div");
+          summary.className = "tool-chain-summary";
+          summary.innerHTML = `<span>▶</span> ${t("feed.moreTools", { n: this.toolChainItemCount - TOOL_CHAIN_COLLAPSE_THRESHOLD })}`;
+
+          // Hide items and inline text beyond threshold
+          const children = chain.querySelectorAll(
+            ".tool-chain-item, .tool-chain-text",
+          );
+          let toolCount = 0;
+          for (const child of children) {
+            if (child.classList.contains("tool-chain-item")) {
+              toolCount++;
+            }
+            if (toolCount > TOOL_CHAIN_COLLAPSE_THRESHOLD) {
+              (child as HTMLElement).style.display = "none";
+            }
+          }
+
+          chain.appendChild(summary);
+
+          summary.addEventListener("click", () => {
+            chain
+              .querySelectorAll(".tool-chain-item, .tool-chain-text")
+              .forEach((el) => {
+                (el as HTMLElement).style.display = "";
+              });
+            summary.remove();
+          });
+        }
+
+        if (this.toolChainCollapsed) {
+          compactItem.style.display = "none";
+          chain.insertBefore(
+            compactItem,
+            chain.querySelector(".tool-chain-summary"),
+          );
+          const summary = chain.querySelector(".tool-chain-summary");
+          if (summary) {
+            summary.innerHTML = `<span>▶</span> ${t("feed.moreTools", { n: this.toolChainItemCount - TOOL_CHAIN_COLLAPSE_THRESHOLD })}`;
+            summary.addEventListener("click", () => {
+              chain
+                .querySelectorAll(".tool-chain-item, .tool-chain-text")
+                .forEach((el) => {
+                  (el as HTMLElement).style.display = "";
+                });
+              summary.remove();
+            });
+          }
+        } else {
+          chain.appendChild(compactItem);
+        }
 
         // Check if completion data already arrived
         const completionData = this.completedData.get(e.toolUseId);
         if (completionData) {
-          // Immediately mark as complete
-          item.classList.remove("tool-pending");
-          item.classList.add(
-            completionData.success ? "tool-success" : "tool-fail",
+          compactItem.classList.remove("pending");
+          compactItem.classList.add(
+            completionData.success ? "success" : "fail",
           );
           if (completionData.duration) {
-            const header = item.querySelector(".feed-item-header");
-            if (header) {
-              const durationBadge = document.createElement("div");
-              durationBadge.className = "feed-item-duration";
-              durationBadge.textContent = `${completionData.duration}ms`;
-              header.appendChild(durationBadge);
-            }
-          }
-          // Add response preview if available
-          if (completionData.response) {
-            const responsePreview = this.createResponsePreview(
-              e.tool,
-              completionData.success,
-              completionData.response,
-            );
-            if (responsePreview) {
-              item.insertAdjacentHTML("beforeend", responsePreview);
+            const durationEl = compactItem.querySelector(".tool-duration");
+            if (durationEl) {
+              durationEl.textContent = `${completionData.duration}ms`;
             }
           }
           this.completedData.delete(e.toolUseId);
         } else {
-          this.pendingItems.set(e.toolUseId, item);
+          this.pendingItems.set(e.toolUseId, compactItem);
         }
         break;
       }
@@ -421,40 +648,27 @@ export class FeedManager {
         const existing = this.pendingItems.get(e.toolUseId);
 
         if (existing) {
-          // Update existing item
-          existing.classList.remove("tool-pending");
-          existing.classList.add(e.success ? "tool-success" : "tool-fail");
+          existing.classList.remove("pending");
+          existing.classList.add(e.success ? "success" : "fail");
 
-          // Add duration badge
-          const header = existing.querySelector(".feed-item-header");
-          if (header && e.duration) {
-            const durationBadge = document.createElement("div");
-            durationBadge.className = "feed-item-duration";
-            durationBadge.textContent = `${e.duration}ms`;
-            header.appendChild(durationBadge);
-          }
-
-          // Add tool response preview
-          const response = e.toolResponse as Record<string, unknown>;
-          const responsePreview = this.createResponsePreview(
-            e.tool,
-            e.success,
-            response,
-          );
-          if (responsePreview) {
-            existing.insertAdjacentHTML("beforeend", responsePreview);
+          // Update duration
+          if (e.duration) {
+            const durationEl = existing.querySelector(".tool-duration");
+            if (durationEl) {
+              durationEl.textContent = `${e.duration}ms`;
+            }
           }
 
           this.pendingItems.delete(e.toolUseId);
         } else {
-          // No pending item yet - store completion data for when pre_tool_use arrives
+          // Store for when pre_tool_use arrives
           this.completedData.set(e.toolUseId, {
             success: e.success,
             duration: e.duration,
             response: e.toolResponse,
           });
         }
-        return; // Never create standalone "Completed" items
+        return; // Don't create standalone items
       }
 
       case "stop": {
@@ -475,9 +689,14 @@ export class FeedManager {
           }
         }
 
-        // If we have a response, show it as Claude's message
         if (response) {
-          item.classList.add("assistant-response");
+          const group = this.ensureTurnGroup(event.sessionId);
+
+          const item = document.createElement("div");
+          item.className = "feed-item assistant-response";
+          item.dataset.eventId = event.id;
+          item.dataset.sessionId = event.sessionId;
+
           const isLong = response.length > 2000;
           const displayResponse = isLong ? response.slice(0, 2000) : response;
           item.innerHTML = `
@@ -488,7 +707,7 @@ export class FeedManager {
             </div>
             <div class="feed-item-content assistant-text">${renderMarkdown(displayResponse)}${isLong ? `<span class="show-more">${t("feed.showMore")}</span>` : ""}</div>
           `;
-          // Add click handler for "show more"
+
           if (isLong) {
             const showMore = item.querySelector(".show-more");
             if (showMore) {
@@ -500,9 +719,15 @@ export class FeedManager {
               });
             }
           }
+
+          group.appendChild(item);
         } else {
-          // No response - compact stop indicator
-          item.classList.add("lifecycle", "compact");
+          // No response — compact stop indicator
+          const group = this.ensureTurnGroup(event.sessionId);
+          const item = document.createElement("div");
+          item.className = "feed-item lifecycle compact";
+          item.dataset.eventId = event.id;
+          item.dataset.sessionId = event.sessionId;
           item.innerHTML = `
             <div class="feed-item-header">
               <div class="feed-item-icon">🏁</div>
@@ -510,19 +735,19 @@ export class FeedManager {
               <div class="feed-item-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
             </div>
           `;
+          group.appendChild(item);
         }
+
+        // Close the turn group
+        this.closeTurnGroup();
         break;
       }
 
       default:
-        return; // Don't add unknown events to feed
+        return;
     }
 
-    // Check scroll position BEFORE adding item (so isNearBottom is accurate)
-    const shouldScroll =
-      event.type === "user_prompt_submit" || this.isNearBottom();
-
-    // Stagger animation for rapid-fire additions
+    // Stagger animation
     const now = Date.now();
     if (now - this.lastAddTime < 200) {
       this.batchIndex++;
@@ -530,65 +755,19 @@ export class FeedManager {
       this.batchIndex = 0;
     }
     this.lastAddTime = now;
-    if (this.batchIndex > 0) {
-      item.style.animationDelay = `${this.batchIndex * 30}ms`;
+
+    // Auto-scroll
+    if (this.activeFilter === null || event.sessionId === this.activeFilter) {
+      if (shouldScroll) {
+        requestAnimationFrame(() => {
+          if (this.feedEl) {
+            this.feedEl.scrollTop = this.feedEl.scrollHeight;
+          }
+        });
+      }
     }
 
-    this.feedEl.appendChild(item);
-
-    // Apply active filter - hide item if it doesn't match
-    if (this.activeFilter !== null && event.sessionId !== this.activeFilter) {
-      item.style.display = "none";
-    } else if (shouldScroll) {
-      // Defer scroll to next frame so browser can calculate new scrollHeight
-      requestAnimationFrame(() => {
-        if (this.feedEl) {
-          this.feedEl.scrollTop = this.feedEl.scrollHeight;
-        }
-      });
-    }
-
-    // Update scroll button visibility
     this.updateScrollButton();
-
-    // Add click handler for expand toggles
-    item.querySelectorAll(".expand-toggle").forEach((toggle) => {
-      toggle.addEventListener("click", () => {
-        const targetId = (toggle as HTMLElement).dataset.target;
-        if (!targetId) return;
-        const details = document.getElementById(targetId);
-        if (details) {
-          const isCollapsed = details.classList.toggle("collapsed");
-          toggle.textContent = isCollapsed
-            ? `▶ ${t("feed.showContent")}`
-            : `▼ ${t("feed.hideContent")}`;
-        }
-      });
-    });
-  }
-
-  /**
-   * Create HTML for tool response preview
-   */
-  private createResponsePreview(
-    tool: string,
-    success: boolean,
-    response: Record<string, unknown>,
-  ): string {
-    if (tool === "Bash" && response.output) {
-      const output = String(response.output).slice(0, 300);
-      if (output.trim()) {
-        return `<div class="feed-item-response"><div class="feed-item-code">${escapeHtml(output)}</div></div>`;
-      }
-    } else if ((tool === "Grep" || tool === "Glob") && response.result) {
-      const lines = String(response.result).split("\n").slice(0, 5).join("\n");
-      if (lines.trim()) {
-        return `<div class="feed-item-response"><div class="feed-item-code">${escapeHtml(lines)}</div></div>`;
-      }
-    } else if (!success && response.error) {
-      return `<div class="feed-item-response error"><div class="feed-item-error">${escapeHtml(String(response.error).slice(0, 200))}</div></div>`;
-    }
-    return "";
   }
 }
 

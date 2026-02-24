@@ -43,7 +43,7 @@
     "release": "./scripts/release.sh"
   },
   "dependencies": {
-    "@deepgram/sdk": "^4.11.3",
+    "@larksuiteoapi/node-sdk": "^1.59.0",
     "chokidar": "^4.0.0",
     "three": "^0.170.0",
     "tone": "^15.1.22",
