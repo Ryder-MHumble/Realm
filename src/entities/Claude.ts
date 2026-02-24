@@ -212,6 +212,12 @@ export class Claude implements ICharacter {
     this.updateStatusColor();
   }
 
+  shiftTargetPosition(delta: THREE.Vector3): void {
+    if (this.targetPosition) {
+      this.targetPosition.add(delta);
+    }
+  }
+
   setState(state: ClaudeState): void {
     this.state = state;
     this.updateStatusColor();

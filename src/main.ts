@@ -32,7 +32,11 @@ import { soundManager } from "./audio";
 
 // Expose for console testing (can remove in production)
 (window as any).soundManager = soundManager;
-import { setupVoiceControl, type VoiceState } from "./ui/VoiceControl";
+import {
+  setupVoiceControl,
+  joinText,
+  type VoiceState,
+} from "./ui/VoiceControl";
 import { getToolIcon } from "./utils/ToolUtils";
 import { AttentionSystem } from "./systems/AttentionSystem";
 import { TimelineManager } from "./ui/TimelineManager";
@@ -189,7 +193,7 @@ const pendingZonesToCleanup = new Map<string, string>();
 const pendingZoneTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 // Zone creation timeout in ms
-const ZONE_CREATION_TIMEOUT = 10000;
+const ZONE_CREATION_TIMEOUT = 30000;
 
 // ============================================================================
 // Managed Sessions (Orchestration)
@@ -574,11 +578,23 @@ async function createManagedSession(
     }
     if (pendingZoneId) {
       pendingZonesToCleanup.set(actualName, pendingZoneId);
+
+      // Handle race condition: the WebSocket broadcast may have already
+      // created the zone before this HTTP response returned. If so,
+      // clean up the pending zone immediately to prevent the 30s timeout.
+      const zoneId =
+        data.session?.claudeSessionId || `managed:${data.session?.id}`;
+      if (state.scene && state.scene.zones.has(zoneId)) {
+        state.scene.removePendingZone(pendingZoneId);
+        pendingZonesToCleanup.delete(actualName);
+        const timeoutId = pendingZoneTimeouts.get(pendingZoneId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          pendingZoneTimeouts.delete(pendingZoneId);
+        }
+      }
     }
   }
-
-  // DON'T remove pending zone here - keep it spinning until real zone appears
-  // Session will be broadcast via WebSocket
 }
 
 /**
@@ -2292,6 +2308,9 @@ function setupDevPanel(): void {
 /** Map Claude sessionIds to managed session IDs */
 const claudeToManagedLink = new Map<string, string>();
 
+/** Map managed session ID → synthetic zone ID (for zones created before claudeSessionId is known) */
+const managedToSyntheticZone = new Map<string, string>();
+
 /** Snapshot of last received sessions for dedup (avoids redundant UI rebuilds) */
 let _lastSessionsSnapshot = "";
 
@@ -2320,22 +2339,58 @@ function getOrCreateSession(
   // Try to link to a managed session (prefers CWD match, falls back to timing)
   const linkedManagedSession = tryLinkToManagedSession(sessionId, eventCwd);
 
-  // Look up hint position: first check saved zone position, then pending hints
+  // Check if a zone already exists with a synthetic ID for this managed session
+  // If so, re-key it to the real Claude session ID instead of creating a new zone
+  if (linkedManagedSession) {
+    const syntheticId = managedToSyntheticZone.get(linkedManagedSession.id);
+    if (syntheticId && state.scene.zones.has(syntheticId)) {
+      const existingZone = state.scene.zones.get(syntheticId)!;
+      const existingSession = state.sessions.get(syntheticId);
+
+      // Re-key zone and session state
+      state.scene.zones.delete(syntheticId);
+      state.scene.zones.set(sessionId, existingZone);
+      if (existingSession) {
+        state.sessions.delete(syntheticId);
+        state.sessions.set(sessionId, existingSession);
+      }
+      managedToSyntheticZone.delete(linkedManagedSession.id);
+
+      // Update zone label
+      const keybindIndex = state.managedSessions.indexOf(linkedManagedSession);
+      const keybind =
+        keybindIndex >= 0 ? getSessionKeybind(keybindIndex) : undefined;
+      state.scene.updateZoneLabel(
+        sessionId,
+        linkedManagedSession.name,
+        keybind,
+      );
+
+      console.log(
+        `Re-keyed zone "${linkedManagedSession.name}" from synthetic to ${sessionId.slice(0, 8)}`,
+      );
+
+      // Save zone position to server if not already saved
+      if (!linkedManagedSession.zonePosition) {
+        const hexPos = state.scene.getZoneHexPosition(sessionId);
+        if (hexPos) {
+          saveZonePosition(linkedManagedSession.id, hexPos);
+        }
+      }
+
+      return state.sessions.get(sessionId) || null;
+    }
+  }
+
+  // No existing synthetic zone — create a new zone
   let hintPosition: { x: number; z: number } | undefined;
   if (linkedManagedSession) {
-    // Check for saved zone position from server
     if (linkedManagedSession.zonePosition) {
-      // Convert hex coords back to cartesian for hint
       const cartesian = state.scene.hexGrid.axialToCartesian(
         linkedManagedSession.zonePosition,
       );
       hintPosition = { x: cartesian.x, z: cartesian.z };
-      console.log(
-        `Restoring zone position for "${linkedManagedSession.name}" at hex`,
-        linkedManagedSession.zonePosition,
-      );
     } else {
-      // Fall back to pending hints (from modal click)
       hintPosition = pendingZoneHints.get(linkedManagedSession.name);
       if (hintPosition) {
         pendingZoneHints.delete(linkedManagedSession.name);
@@ -2352,7 +2407,6 @@ function getOrCreateSession(
     if (pendingZoneId && state.scene) {
       state.scene.removePendingZone(pendingZoneId);
       pendingZonesToCleanup.delete(linkedManagedSession.name);
-      // Clear the timeout since zone was created successfully
       const timeoutId = pendingZoneTimeouts.get(pendingZoneId);
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -2575,15 +2629,13 @@ function syncZoneLabels(): void {
       managedIndex >= 0 ? getSessionKeybind(managedIndex) : undefined;
     state.scene.updateZoneLabel(zoneId, managed.name, keybind);
 
-    // Also create the link for future use
+    // Track locally for client-side zone management only.
+    // Do NOT persist synthetic managed: IDs to server — real linking
+    // happens when actual Claude Code events arrive via tryLinkToManagedSession.
     claudeToManagedLink.set(zoneId, managed.id);
-    managed.claudeSessionId = zoneId;
-
-    // Notify server about the link
-    linkSessionOnServer(managed.id, zoneId);
 
     console.log(
-      `Auto-linked zone ${zoneId.slice(0, 8)} to managed session "${managed.name}"`,
+      `Mapped zone ${zoneId.slice(0, 8)} to managed session "${managed.name}" (local only)`,
     );
   }
 }
@@ -3254,7 +3306,7 @@ function setupPromptForm() {
       const transcript = await state.voice.stop();
       if (transcript) {
         const existing = input.value.trim();
-        input.value = existing ? existing + " " + transcript : transcript;
+        input.value = joinText(existing, transcript);
       }
     }
 
@@ -3986,97 +4038,119 @@ function init() {
     // Server is the source of truth for session linking
     claudeToManagedLink.clear();
     for (const session of sessions) {
+      // Determine the zone ID for this session
+      const zoneId = session.claudeSessionId || `managed:${session.id}`;
+
       if (session.claudeSessionId) {
         claudeToManagedLink.set(session.claudeSessionId, session.id);
 
-        // Proactively create zone if it doesn't exist yet
-        // This handles sessions that have no recent events in history
-        if (state.scene && !state.scene.zones.has(session.claudeSessionId)) {
-          // Use saved position if available, then check pending hints from click-to-create
-          let hintPosition: { x: number; z: number } | undefined;
-          if (session.zonePosition) {
-            const cartesian = state.scene.hexGrid.axialToCartesian(
-              session.zonePosition,
-            );
-            hintPosition = { x: cartesian.x, z: cartesian.z };
-            console.log(
-              `Restoring zone for "${session.name}" at saved position`,
-              session.zonePosition,
-            );
-          } else if (pendingZoneHints.has(session.name)) {
-            hintPosition = pendingZoneHints.get(session.name);
-            pendingZoneHints.delete(session.name);
-            console.log(
-              `Creating zone for "${session.name}" at clicked position`,
-              hintPosition,
-            );
-          } else {
-            console.log(
-              `Creating zone for session "${session.name}" (no recent events in history)`,
-            );
+        // Re-key synthetic zone → real zone when claudeSessionId arrives
+        const syntheticId = managedToSyntheticZone.get(session.id);
+        if (syntheticId && state.scene) {
+          const existingZone = state.scene.zones.get(syntheticId);
+          const existingSession = state.sessions.get(syntheticId);
+          if (existingZone) {
+            // Move zone to real ID
+            state.scene.zones.delete(syntheticId);
+            state.scene.zones.set(session.claudeSessionId, existingZone);
           }
-          const zone = state.scene.createZone(session.claudeSessionId, {
-            hintPosition,
-          });
-
-          // Clean up pending zone if this session had one
-          const pendingZoneId = pendingZonesToCleanup.get(session.name);
-          if (pendingZoneId) {
-            state.scene.removePendingZone(pendingZoneId);
-            pendingZonesToCleanup.delete(session.name);
-            const timeoutId = pendingZoneTimeouts.get(pendingZoneId);
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-              pendingZoneTimeouts.delete(pendingZoneId);
-            }
+          if (existingSession) {
+            state.sessions.delete(syntheticId);
+            state.sessions.set(session.claudeSessionId, existingSession);
           }
-
-          // Play zone creation sound
-          if (state.soundEnabled) {
-            soundManager.play("zone_create", {
-              zoneId: session.claudeSessionId,
-            });
-          }
-
-          // Create Claude entity for this zone
-          const claude = new Claude(state.scene, {
-            color: zone.color,
-            startStation: "center",
-          });
-          const centerStation = zone.stations.get("center");
-          if (centerStation) {
-            claude.mesh.position.copy(centerStation.position);
-          }
-
-          const subagents = new SubagentManager(state.scene);
-
-          const sessionState: SessionState = {
-            claude,
-            subagents,
-            zone,
-            color: zone.color,
-            stats: {
-              toolsUsed: 0,
-              filesTouched: new Set(),
-              activeSubagents: 0,
-            },
-          };
-          state.sessions.set(session.claudeSessionId, sessionState);
-
-          // Update zone label with session name
-          const keybindIndex = sessions.indexOf(session);
-          const keybind =
-            keybindIndex >= 0 ? getSessionKeybind(keybindIndex) : undefined;
-          state.scene.updateZoneLabel(
-            session.claudeSessionId,
-            session.name,
-            keybind,
+          managedToSyntheticZone.delete(session.id);
+          console.log(
+            `Re-keyed zone "${session.name}" from synthetic to ${session.claudeSessionId.slice(0, 8)}`,
           );
         }
+      }
 
-        // Update zone floor status based on session status
-        if (state.scene) {
-          // Map managed session status to zone status
+      // Proactively create zone if it doesn't exist yet
+      if (state.scene && !state.scene.zones.has(zoneId)) {
+        // For sessions without claudeSessionId, track the synthetic zone
+        if (!session.claudeSessionId) {
+          managedToSyntheticZone.set(session.id, zoneId);
+        }
+
+        // Use saved position if available, then check pending hints from click-to-create
+        let hintPosition: { x: number; z: number } | undefined;
+        if (session.zonePosition) {
+          const cartesian = state.scene.hexGrid.axialToCartesian(
+            session.zonePosition,
+          );
+          hintPosition = { x: cartesian.x, z: cartesian.z };
+          console.log(
+            `Restoring zone for "${session.name}" at saved position`,
+            session.zonePosition,
+          );
+        } else if (pendingZoneHints.has(session.name)) {
+          hintPosition = pendingZoneHints.get(session.name);
+          pendingZoneHints.delete(session.name);
+          console.log(
+            `Creating zone for "${session.name}" at clicked position`,
+            hintPosition,
+          );
+        } else {
+          console.log(`Creating zone for session "${session.name}"`);
+        }
+        const zone = state.scene.createZone(zoneId, {
+          hintPosition,
+        });
+
+        // Clean up pending zone if this session had one
+        const pendingZoneId = pendingZonesToCleanup.get(session.name);
+        if (pendingZoneId) {
+          state.scene.removePendingZone(pendingZoneId);
+          pendingZonesToCleanup.delete(session.name);
+          const timeoutId = pendingZoneTimeouts.get(pendingZoneId);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            pendingZoneTimeouts.delete(pendingZoneId);
+          }
+        }
+
+        // Play zone creation sound
+        if (state.soundEnabled) {
+          soundManager.play("zone_create", { zoneId });
+        }
+
+        // Create Claude entity for this zone
+        const claude = new Claude(state.scene, {
+          color: zone.color,
+          startStation: "center",
+        });
+        const centerStation = zone.stations.get("center");
+        if (centerStation) {
+          claude.mesh.position.copy(centerStation.position);
+        }
+
+        const subagents = new SubagentManager(state.scene);
+
+        const sessionState: SessionState = {
+          claude,
+          subagents,
+          zone,
+          color: zone.color,
+          stats: {
+            toolsUsed: 0,
+            filesTouched: new Set(),
+            activeSubagents: 0,
+          },
+        };
+        state.sessions.set(zoneId, sessionState);
+
+        // Update zone label with session name
+        const keybindIndex = sessions.indexOf(session);
+        const keybind =
+          keybindIndex >= 0 ? getSessionKeybind(keybindIndex) : undefined;
+        state.scene.updateZoneLabel(zoneId, session.name, keybind);
+      }
+
+      // Update zone floor status based on session status
+      if (state.scene) {
+        const effectiveZoneId =
+          session.claudeSessionId || managedToSyntheticZone.get(session.id);
+        if (effectiveZoneId) {
           const zoneStatus =
             session.status === "working"
               ? "working"
@@ -4085,22 +4159,23 @@ function init() {
                 : session.status === "offline"
                   ? "offline"
                   : "idle";
-          state.scene.setZoneStatus(session.claudeSessionId, zoneStatus);
+          state.scene.setZoneStatus(effectiveZoneId, zoneStatus);
         }
       }
     }
 
     // Clean up orphaned zones (zones whose managed session has been deleted).
-    // Only delete zones when no managed session references that claudeSessionId.
-    // Zones for offline/unlinked sessions are kept visible in "offline" state.
+    // Only delete zones when no managed session references that claudeSessionId or synthetic ID.
     if (state.scene && !isIdentical) {
       const activeClaudeIds = new Set(
         sessions.map((s) => s.claudeSessionId).filter(Boolean),
       );
+      const activeSyntheticIds = new Set(managedToSyntheticZone.values());
       const managedSessionIds = new Set(sessions.map((s) => s.id));
       const zonesToDelete: string[] = [];
       for (const [zoneId] of state.scene.zones) {
         if (activeClaudeIds.has(zoneId)) continue; // Zone is actively linked
+        if (activeSyntheticIds.has(zoneId)) continue; // Synthetic zone still active
 
         // Check if a managed session still owns this zone via the link map
         const managedId = claudeToManagedLink.get(zoneId);
@@ -4293,6 +4368,19 @@ function init() {
       // The base station Y is 0.3 (from createZoneStations), so add that offset
       const stationYOffset = 0.3;
       session.claude.mesh.position.y = elevation + stationYOffset;
+    }
+  });
+
+  // Register zone move callback (to move Claude + subagents with zone)
+  state.scene.onZoneMove((sessionId, delta) => {
+    const session = state.sessions.get(sessionId);
+    if (session) {
+      session.claude.mesh.position.add(delta);
+      session.claude.shiftTargetPosition(delta);
+      for (const subagent of session.subagents.getAll()) {
+        subagent.claude.mesh.position.add(delta);
+        subagent.claude.shiftTargetPosition(delta);
+      }
     }
   });
 

@@ -69,6 +69,9 @@ const zh = {
     connectionFailed: "语音识别失败",
     sendHint: "发送",
     startVoice: "开始语音输入",
+    switchLang: "切换语音识别语言",
+    switchToChinese: "切换为中文识别",
+    switchToEnglish: "切换为英文识别",
   },
 
   // Modes

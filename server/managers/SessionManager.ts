@@ -6,12 +6,7 @@
  */
 
 import { exec, execFile } from "child_process";
-import {
-  readFileSync,
-  writeFileSync,
-  existsSync,
-  unlinkSync,
-} from "fs";
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from "fs";
 import { resolve } from "path";
 import { randomUUID } from "crypto";
 import type {
@@ -29,6 +24,8 @@ import {
   validateDirectoryPath,
   validateTmuxSession,
   sendToTmuxSafe,
+  execFileAsync,
+  acceptBypassPrompt,
   getExecOptions,
 } from "../tmuxUtils.js";
 import type { GitStatusManager } from "../GitStatusManager.js";
@@ -161,7 +158,7 @@ export class SessionManager {
           tmuxSession,
           "-c",
           cwd,
-          `PATH=${this.execPath} ${claudeCmd}`,
+          `PATH='${this.execPath}' ${claudeCmd}`,
         ],
         getExecOptions(),
         (error) => {
@@ -170,7 +167,6 @@ export class SessionManager {
             reject(new Error(`Failed to spawn session: ${error.message}`));
             return;
           }
-
           const mode = options.mode || "auto-edit";
 
           const session: ManagedSession = {
@@ -194,6 +190,11 @@ export class SessionManager {
           if (cwd) {
             this.gitStatusManager.track(id, cwd);
             this.projectsManager.addProject(cwd, name);
+          }
+
+          // Accept the bypass permissions confirmation prompt
+          if (flags.skipPermissions !== false) {
+            acceptBypassPrompt(tmuxSession).catch(() => {});
           }
 
           // If mode is 'plan', send /plan command after session boots
@@ -330,7 +331,20 @@ export class SessionManager {
       return result;
     }
 
-    // Claude Code: send via tmux
+    // Claude Code: verify tmux session is alive before sending
+    try {
+      await execFileAsync("tmux", ["has-session", "-t", session.tmuxSession]);
+    } catch {
+      log(
+        `Session "${session.name}" tmux session is dead (${session.tmuxSession})`,
+      );
+      session.status = "offline";
+      session.currentTool = undefined;
+      this.broadcastSessions();
+      this.saveSessions();
+      return { ok: false, error: "Session is offline" };
+    }
+
     try {
       await sendToTmuxSafe(session.tmuxSession, prompt);
       session.lastActivity = Date.now();
@@ -442,9 +456,7 @@ export class SessionManager {
     if (restarted > 0) {
       this.broadcastSessions();
       this.saveSessions();
-      log(
-        `Auto-restarted ${restarted}/${offlineSessions.length} session(s)`,
-      );
+      log(`Auto-restarted ${restarted}/${offlineSessions.length} session(s)`);
     }
   }
 
@@ -488,7 +500,7 @@ export class SessionManager {
               session.tmuxSession,
               "-c",
               cwd,
-              `PATH=${this.execPath} claude --permission-mode=bypassPermissions --dangerously-skip-permissions`,
+              `PATH='${this.execPath}' claude --permission-mode=bypassPermissions --dangerously-skip-permissions`,
             ],
             getExecOptions(),
             (error) => {
@@ -511,14 +523,7 @@ export class SessionManager {
                 }
               }
 
-              setTimeout(() => {
-                execFile(
-                  "tmux",
-                  ["send-keys", "-t", session.tmuxSession, "Enter"],
-                  getExecOptions(),
-                  () => {},
-                );
-              }, 3000);
+              acceptBypassPrompt(session.tmuxSession).catch(() => {});
 
               log(
                 `Auto-restarted session: ${session.name} (${session.id.slice(0, 8)}) -> tmux:${session.tmuxSession}`,
@@ -563,7 +568,7 @@ export class SessionManager {
               session.tmuxSession,
               "-c",
               cwd,
-              `PATH=${this.execPath} claude -c --permission-mode=bypassPermissions --dangerously-skip-permissions`,
+              `PATH='${this.execPath}' claude -c --permission-mode=bypassPermissions --dangerously-skip-permissions`,
             ],
             getExecOptions(),
             (error) => {
@@ -583,14 +588,7 @@ export class SessionManager {
                 }
               }
 
-              setTimeout(() => {
-                execFile(
-                  "tmux",
-                  ["send-keys", "-t", session.tmuxSession, "Enter"],
-                  getExecOptions(),
-                  () => {},
-                );
-              }, 3000);
+              acceptBypassPrompt(session.tmuxSession).catch(() => {});
 
               log(
                 `Restarted session: ${session.name} (${session.id.slice(0, 8)})`,
@@ -610,10 +608,7 @@ export class SessionManager {
   // ============================================================================
 
   /** Link a Claude Code session ID to a managed session */
-  linkClaudeSession(
-    claudeSessionId: string,
-    managedSessionId: string,
-  ): void {
+  linkClaudeSession(claudeSessionId: string, managedSessionId: string): void {
     this.claudeToManagedMap.set(claudeSessionId, managedSessionId);
   }
 
@@ -641,7 +636,13 @@ export class SessionManager {
 
     const candidates: ManagedSession[] = [];
     for (const session of this.managedSessions.values()) {
-      if (session.claudeSessionId) continue;
+      // Skip sessions already linked with a real Claude session ID.
+      // Synthetic "managed:" prefix IDs are treated as unlinked.
+      if (
+        session.claudeSessionId &&
+        !session.claudeSessionId.startsWith("managed:")
+      )
+        continue;
       if (!session.cwd) continue;
 
       const normalizedSessionCwd = resolve(session.cwd);
@@ -654,6 +655,11 @@ export class SessionManager {
 
     candidates.sort((a, b) => b.createdAt - a.createdAt);
     const match = candidates[0];
+
+    // Clean up stale synthetic managed: link if present
+    if (match.claudeSessionId?.startsWith("managed:")) {
+      this.claudeToManagedMap.delete(match.claudeSessionId);
+    }
 
     this.linkClaudeSession(claudeSessionId, match.id);
     match.claudeSessionId = claudeSessionId;
@@ -710,11 +716,7 @@ export class SessionManager {
   }
 
   /** Update session status from permission manager */
-  updateSessionStatus(
-    sessionId: string,
-    status: string,
-    tool?: string,
-  ): void {
+  updateSessionStatus(sessionId: string, status: string, tool?: string): void {
     const session = this.managedSessions.get(sessionId);
     if (!session) return;
 

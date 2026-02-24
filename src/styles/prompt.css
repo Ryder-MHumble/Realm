@@ -645,18 +645,26 @@
 /* ===== Voice Mode (replaces prompt container when recording) ===== */
 .voice-mode {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 8px 14px;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(239, 68, 68, 0.15);
   border-radius: 18px;
   animation: fadeIn 0.2s ease-out;
+  overflow: hidden;
 }
 
 .voice-mode.hidden {
   display: none;
+}
+
+.voice-mode-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 14px;
 }
 
 .voice-mode-indicator {
@@ -760,6 +768,70 @@
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.85);
+}
+
+/* Voice language toggle button */
+.voice-lang-btn {
+  width: 32px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-lang-btn:hover {
+  background: rgba(167, 139, 250, 0.12);
+  border-color: rgba(167, 139, 250, 0.3);
+  color: #c4b5fd;
+}
+
+/* Voice transcript area */
+.voice-transcript {
+  padding: 6px 14px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
+  max-height: 80px;
+  overflow-y: auto;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.voice-transcript.hidden {
+  display: none;
+}
+
+.voice-transcript-final {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.voice-transcript-interim {
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+
+.voice-transcript::-webkit-scrollbar {
+  width: 4px;
+}
+
+.voice-transcript::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.voice-transcript::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
 }
 
 /* ===== Floating Feed Toggle (outside command bar) ===== */

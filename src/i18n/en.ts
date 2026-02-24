@@ -69,6 +69,9 @@ const en = {
     connectionFailed: "Speech recognition failed",
     sendHint: "to send",
     startVoice: "Start voice input",
+    switchLang: "Switch voice language",
+    switchToChinese: "Switch to Chinese recognition",
+    switchToEnglish: "Switch to English recognition",
   },
 
   // Modes

@@ -45,6 +45,9 @@ export interface ICharacter {
   /** Set the character's state (affects animation and status indicators) */
   setState(state: CharacterState): void;
 
+  /** Shift the character's walk target by a delta (used when zone moves) */
+  shiftTargetPosition(delta: THREE.Vector3): void;
+
   /** Clean up resources when character is removed */
   dispose(): void;
 }

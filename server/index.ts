@@ -65,7 +65,10 @@ function main() {
 
   // ---- Create new managers ----
   const wsManager = new WebSocketManager();
-  const eventProcessor = new EventProcessor(config.eventsFile, config.maxEvents);
+  const eventProcessor = new EventProcessor(
+    config.eventsFile,
+    config.maxEvents,
+  );
   const tilesManager = new TilesManager(config.tilesFile);
   const groupsManager = new GroupsManager(config.groupsFile);
   const tokenTracker = new TokenTracker(config.tmuxSession);
@@ -167,9 +170,7 @@ function main() {
   };
 
   // ---- Create HTTP server ----
-  const httpServer = createServer((req, res) =>
-    routeRequest(req, res, ctx),
-  );
+  const httpServer = createServer((req, res) => routeRequest(req, res, ctx));
 
   // ---- Create WebSocket server ----
   const wss = new WebSocketServer({ server: httpServer });
@@ -191,7 +192,9 @@ function main() {
     const events = eventProcessor.getEvents();
     const sessions = sessionManager.getSessions();
     const activeClaudeSessionIds = new Set(
-      sessions.map((s) => s.claudeSessionId).filter(Boolean),
+      sessions
+        .map((s) => s.claudeSessionId)
+        .filter((id): id is string => !!id && !id.startsWith("managed:")),
     );
     const filteredHistory = events
       .filter((e) => activeClaudeSessionIds.has(e.sessionId))

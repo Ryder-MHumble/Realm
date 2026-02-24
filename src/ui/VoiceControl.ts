@@ -9,14 +9,16 @@
  * - No global keyboard shortcut (avoids accidental triggers while typing)
  *
  * Uses the Web Speech API (SpeechRecognition) — no server or API key needed.
- * Supports Chinese (zh-CN) and English (en-US) based on i18n locale.
+ * Voice recognition language is independently configurable (zh-CN / en-US)
+ * with a toggle button, separate from the UI locale.
  */
 
 import { VoiceInput } from "../audio/VoiceInput";
 import { soundManager } from "../audio/SoundManager";
-import { getLocale } from "../i18n/index";
+import { getLocale, t } from "../i18n/index";
 
 export type VoiceStatus = "idle" | "connecting" | "recording" | "error";
+export type VoiceLang = "en" | "zh";
 
 export interface VoiceState {
   input: VoiceInput;
@@ -38,9 +40,36 @@ function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
-/** Map i18n locale to BCP-47 language tag for SpeechRecognition */
-function getRecognitionLang(): string {
-  return getLocale() === "zh" ? "zh-CN" : "en-US";
+// ---- Voice language preference (independent of UI locale) ----
+
+const VOICE_LANG_KEY = "vibecraft-voice-lang";
+
+/** Get saved voice recognition language, defaults to current i18n locale */
+function getVoiceLang(): VoiceLang {
+  const saved = localStorage.getItem(VOICE_LANG_KEY) as VoiceLang | null;
+  if (saved === "zh" || saved === "en") return saved;
+  return getLocale() === "zh" ? "zh" : "en";
+}
+
+/** Save voice recognition language preference */
+function setVoiceLang(lang: VoiceLang): void {
+  localStorage.setItem(VOICE_LANG_KEY, lang);
+}
+
+/** Map voice lang to BCP-47 tag for SpeechRecognition */
+function toBcp47(lang: VoiceLang): string {
+  return lang === "zh" ? "zh-CN" : "en-US";
+}
+
+/**
+ * Join two text segments with the correct separator for the given language.
+ * Chinese: no space. English: space.
+ */
+export function joinText(a: string, b: string, lang?: VoiceLang): string {
+  if (!a) return b;
+  if (!b) return a;
+  const effectiveLang = lang ?? getVoiceLang();
+  return effectiveLang === "zh" ? a + b : a + " " + b;
 }
 
 /**
@@ -77,6 +106,14 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
   const voiceBars = voiceModeEl?.querySelectorAll(".voice-bar") as
     | NodeListOf<HTMLElement>
     | undefined;
+  const voiceLangBtn = document.getElementById(
+    "voice-lang-btn",
+  ) as HTMLButtonElement | null;
+  const voiceTranscriptEl = document.getElementById("voice-transcript");
+  const voiceTranscriptText = document.getElementById("voice-transcript-text");
+  const voiceTranscriptInterim = document.getElementById(
+    "voice-transcript-interim",
+  );
 
   if (
     !micBtn ||
@@ -119,6 +156,7 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
   let isRecording = false;
   let status: VoiceStatus = "idle";
   let error: string | null = null;
+  let voiceLang: VoiceLang = getVoiceLang();
 
   // Exposed state object
   const voiceState: VoiceState = {
@@ -139,6 +177,67 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
     deps.onStateChange?.(voiceState);
   };
 
+  // ---- Language toggle ----
+
+  function updateLangButton() {
+    if (voiceLangBtn) {
+      voiceLangBtn.textContent = voiceLang === "zh" ? "中" : "EN";
+      voiceLangBtn.title =
+        voiceLang === "zh"
+          ? t("voice.switchToEnglish")
+          : t("voice.switchToChinese");
+    }
+  }
+
+  // Initialize button state
+  updateLangButton();
+
+  voiceLangBtn?.addEventListener("click", () => {
+    voiceLang = voiceLang === "zh" ? "en" : "zh";
+    setVoiceLang(voiceLang);
+    updateLangButton();
+
+    // If currently recording, restart recognition with new language
+    if (isRecording) {
+      recognition.lang = toBcp47(voiceLang);
+      try {
+        recognition.abort();
+      } catch {
+        // ignore — onend handler will restart with the updated lang
+      }
+    }
+  });
+
+  // ---- Transcript display ----
+
+  function clearTranscriptDisplay() {
+    if (voiceTranscriptText) voiceTranscriptText.textContent = "";
+    if (voiceTranscriptInterim) voiceTranscriptInterim.textContent = "";
+    if (voiceTranscriptEl) voiceTranscriptEl.classList.add("hidden");
+  }
+
+  function updateTranscriptDisplay() {
+    // Build display text from existing + accumulated
+    const displayParts: string[] = [];
+    if (existingPromptText) displayParts.push(existingPromptText);
+    if (accumulatedTranscript) displayParts.push(accumulatedTranscript);
+    if (voiceTranscriptText) {
+      voiceTranscriptText.textContent = displayParts.reduce(
+        (acc, part) => joinText(acc, part, voiceLang),
+        "",
+      );
+    }
+    if (voiceTranscriptInterim) {
+      voiceTranscriptInterim.textContent = currentInterim;
+    }
+
+    // Show transcript area when there's content
+    if (voiceTranscriptEl) {
+      const hasContent = accumulatedTranscript || currentInterim;
+      voiceTranscriptEl.classList.toggle("hidden", !hasContent);
+    }
+  }
+
   // ---- UI mode switching ----
 
   /** Switch to voice mode: hide prompt container, show voice visualization */
@@ -155,6 +254,7 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
     voiceBars?.forEach((bar) => {
       bar.style.height = "4px";
     });
+    clearTranscriptDisplay();
   }
 
   // ---- Recording control ----
@@ -165,6 +265,7 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
     existingPromptText = input.value.trim();
     currentInterim = "";
     enterVoiceMode();
+    clearTranscriptDisplay();
     syncState();
 
     // Start microphone for spectrum visualization
@@ -177,8 +278,10 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
       return false;
     }
 
-    // Configure language based on current locale
-    recognition.lang = getRecognitionLang();
+    // Configure language from saved preference
+    voiceLang = getVoiceLang();
+    recognition.lang = toBcp47(voiceLang);
+    updateLangButton();
 
     try {
       recognition.start();
@@ -221,6 +324,7 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
       setTimeout(() => {
         const transcript = accumulatedTranscript;
         accumulatedTranscript = "";
+        clearTranscriptDisplay();
         syncState();
         resolve(transcript);
       }, 300);
@@ -295,19 +399,29 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
     if (!transcript) return;
 
     if (data.is_final) {
-      accumulatedTranscript += (accumulatedTranscript ? " " : "") + transcript;
+      accumulatedTranscript = joinText(
+        accumulatedTranscript,
+        transcript,
+        voiceLang,
+      );
       currentInterim = "";
     } else {
       currentInterim = transcript;
     }
 
-    // Stream to prompt input in real-time (visible when user returns to text mode)
+    // Stream to prompt input in real-time (for form submission)
     const parts: string[] = [];
     if (existingPromptText) parts.push(existingPromptText);
     if (accumulatedTranscript) parts.push(accumulatedTranscript);
     if (currentInterim) parts.push(currentInterim);
-    input.value = parts.join(" ");
+    input.value = parts.reduce(
+      (acc, part) => joinText(acc, part, voiceLang),
+      "",
+    );
     input.dispatchEvent(new Event("input")); // Trigger auto-resize
+
+    // Update visible transcript display
+    updateTranscriptDisplay();
 
     voiceState.accumulatedTranscript = accumulatedTranscript;
     deps.onStateChange?.(voiceState);
@@ -373,7 +487,7 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
     // Ensure transcript is in the input
     if (transcript) {
       const existing = existingPromptText;
-      input.value = existing ? existing + " " + transcript : transcript;
+      input.value = joinText(existing, transcript, voiceLang);
       input.dispatchEvent(new Event("input"));
     }
 

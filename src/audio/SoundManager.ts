@@ -395,6 +395,25 @@ class SoundManager {
   }
 
   /**
+   * Play zone hover sound — warmer chime when entering a zone area.
+   * Uses a sine wave with a softer attack than hex hover for a gentler feel.
+   */
+  playZoneHover(): void {
+    if (!this.initialized || !this.enabled) return;
+
+    const synth = this.getSynth({
+      type: "sine",
+      attack: 0.005,
+      decay: 0.1,
+      sustain: 0,
+      release: 0.06,
+    });
+    synth.volume.value = VOL.QUIET;
+    synth.triggerAttackRelease("E5", "32n");
+    this.releaseSynth(synth, 180);
+  }
+
+  /**
    * Play slider tick sound with pitch based on value
    * @param normalizedValue - 0 = low pitch, 1 = high pitch
    */

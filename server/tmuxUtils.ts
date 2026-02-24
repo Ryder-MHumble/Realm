@@ -50,9 +50,7 @@ export function validateDirectoryPath(inputPath: string): string {
   // Reject paths with shell metacharacters that could enable injection
   const dangerousChars = /[;&|`$(){}[\]<>\\'"!#*?]/;
   if (dangerousChars.test(resolved)) {
-    throw new Error(
-      `Directory path contains invalid characters: ${inputPath}`,
-    );
+    throw new Error(`Directory path contains invalid characters: ${inputPath}`);
   }
 
   return resolved;
@@ -84,6 +82,53 @@ export function execFileAsync(cmd: string, args: string[]): Promise<void> {
 }
 
 /**
+ * Wait for a tmux session to be ready (pane exists and can receive input).
+ * Polls `tmux has-session` at regular intervals.
+ */
+export async function waitForTmuxReady(
+  tmuxSession: string,
+  timeoutMs: number = 15000,
+  intervalMs: number = 500,
+): Promise<void> {
+  validateTmuxSession(tmuxSession);
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      await execFileAsync("tmux", ["has-session", "-t", tmuxSession]);
+      return;
+    } catch {
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+  }
+  console.warn(
+    `tmux session ${tmuxSession} not confirmed ready after ${timeoutMs}ms`,
+  );
+}
+
+/**
+ * Accept the Claude Code bypass permissions confirmation prompt.
+ * Claude shows a selection UI defaulting to "1. No, exit".
+ * We send Down (select "2. Yes, I accept") then Enter to confirm.
+ */
+export async function acceptBypassPrompt(
+  tmuxSession: string,
+  delayMs: number = 300,
+): Promise<void> {
+  validateTmuxSession(tmuxSession);
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  await sleep(delayMs);
+
+  try {
+    await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "Down"]);
+    await sleep(100);
+    await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "Enter"]);
+  } catch {
+    // Session may have already exited — ignore
+  }
+}
+
+/**
  * Safely send text to a tmux session.
  *
  * For slash commands (starting with /), uses send-keys -l so that Claude Code
@@ -94,15 +139,33 @@ export function execFileAsync(cmd: string, args: string[]): Promise<void> {
 export async function sendToTmuxSafe(
   tmuxSession: string,
   text: string,
+  maxRetries: number = 3,
 ): Promise<void> {
   validateTmuxSession(tmuxSession);
 
   const isSlashCommand = text.trimStart().startsWith("/");
 
   if (isSlashCommand) {
-    await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "-l", text]);
-    await new Promise((r) => setTimeout(r, 100));
-    await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "Enter"]);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await execFileAsync("tmux", [
+          "send-keys",
+          "-t",
+          tmuxSession,
+          "-l",
+          text,
+        ]);
+        await new Promise((r) => setTimeout(r, 100));
+        await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "Enter"]);
+        return;
+      } catch (error) {
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1000));
+          continue;
+        }
+        throw error;
+      }
+    }
     return;
   }
 
@@ -111,10 +174,21 @@ export async function sendToTmuxSafe(
   writeFileSync(tempFile, text);
 
   try {
-    await execFileAsync("tmux", ["load-buffer", tempFile]);
-    await execFileAsync("tmux", ["paste-buffer", "-t", tmuxSession]);
-    await new Promise((r) => setTimeout(r, 100));
-    await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "Enter"]);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await execFileAsync("tmux", ["load-buffer", tempFile]);
+        await execFileAsync("tmux", ["paste-buffer", "-t", tmuxSession]);
+        await new Promise((r) => setTimeout(r, 100));
+        await execFileAsync("tmux", ["send-keys", "-t", tmuxSession, "Enter"]);
+        return;
+      } catch (error) {
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1000));
+          continue;
+        }
+        throw error;
+      }
+    }
   } finally {
     try {
       unlinkSync(tempFile);

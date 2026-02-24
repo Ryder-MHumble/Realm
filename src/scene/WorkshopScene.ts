@@ -133,6 +133,9 @@ export class WorkshopScene {
   private onZoneElevationChange:
     | ((sessionId: string, elevation: number) => void)
     | null = null;
+  private onZoneMoveChange:
+    | ((sessionId: string, delta: THREE.Vector3) => void)
+    | null = null;
 
   // Pending zone elevations (loaded from localStorage, applied when zones are created)
   private pendingZoneElevations: Map<string, number> = new Map();
@@ -252,6 +255,7 @@ export class WorkshopScene {
   private hoverRaycaster = new THREE.Raycaster();
   private hoverMouse = new THREE.Vector2();
   private lastHoveredHex: { q: number; r: number } | null = null;
+  private lastHoveredZoneId: string | null = null;
 
   // === HOVER SOUND TUNING ===
   // Set to false to disable hover sounds entirely
@@ -390,6 +394,27 @@ export class WorkshopScene {
     this.hoverMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     this.hoverRaycaster.setFromCamera(this.hoverMouse, this.camera);
+
+    // Check zone hover (zone groups take priority over floor)
+    let hoveredZoneId: string | null = null;
+    for (const [sessionId, zone] of this.zones) {
+      const zoneIntersects = this.hoverRaycaster.intersectObject(
+        zone.group,
+        true,
+      );
+      if (zoneIntersects.length > 0) {
+        hoveredZoneId = sessionId;
+        break;
+      }
+    }
+
+    if (hoveredZoneId !== this.lastHoveredZoneId) {
+      this.lastHoveredZoneId = hoveredZoneId;
+      if (hoveredZoneId && this.HOVER_SOUND_ENABLED) {
+        soundManager.playZoneHover();
+      }
+    }
+
     const intersects = this.hoverRaycaster.intersectObject(this.worldFloor);
 
     if (intersects.length > 0) {
@@ -440,6 +465,7 @@ export class WorkshopScene {
   private handleHoverLeave = (): void => {
     this.hoverLerpActive = false;
     this.lastHoveredHex = null;
+    this.lastHoveredZoneId = null;
   };
 
   /**
@@ -1166,6 +1192,21 @@ export class WorkshopScene {
     // Notify external listeners (for Claude position updates)
     if (this.onZoneElevationChange) {
       this.onZoneElevationChange(sessionId, elevation);
+    }
+  }
+
+  /**
+   * Register callback for zone position changes (for updating Claude/subagent positions)
+   */
+  onZoneMove(
+    callback: (sessionId: string, delta: THREE.Vector3) => void,
+  ): void {
+    this.onZoneMoveChange = callback;
+  }
+
+  private notifyZoneMoveChange(sessionId: string, delta: THREE.Vector3): void {
+    if (this.onZoneMoveChange) {
+      this.onZoneMoveChange(sessionId, delta);
     }
   }
 
@@ -3914,6 +3955,7 @@ export class WorkshopScene {
       const startPos = zone.group.position.clone();
       const startTime = performance.now();
       const duration = 300;
+      let prevPos = startPos.clone();
 
       const animateMove = () => {
         const elapsed = performance.now() - startTime;
@@ -3922,6 +3964,13 @@ export class WorkshopScene {
         const eased = 1 - Math.pow(1 - progress, 3);
 
         zone.group.position.lerpVectors(startPos, newPosition, eased);
+
+        // Notify listeners with per-frame delta (for character following)
+        const frameDelta = zone.group.position.clone().sub(prevPos);
+        if (frameDelta.lengthSq() > 0) {
+          this.notifyZoneMoveChange(sessionId, frameDelta);
+        }
+        prevPos.copy(zone.group.position);
 
         if (progress < 1) {
           requestAnimationFrame(animateMove);
@@ -3944,6 +3993,7 @@ export class WorkshopScene {
       };
       requestAnimationFrame(animateMove);
     } else {
+      const oldPos = zone.group.position.clone();
       zone.group.position.copy(newPosition);
       zone.position.set(x, 0, z);
       if (zone.edgeLines) {
@@ -3956,6 +4006,9 @@ export class WorkshopScene {
       // Update scene-level positioned systems
       this.zoneNotifications.updateZonePosition(sessionId, zone.position);
       this.stationPanels.updateZonePosition(sessionId, zone.position);
+      // Notify listeners with total delta (for character following)
+      const totalDelta = newPosition.clone().sub(oldPos);
+      this.notifyZoneMoveChange(sessionId, totalDelta);
       onComplete?.();
     }
 

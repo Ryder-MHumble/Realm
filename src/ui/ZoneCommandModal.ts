@@ -297,14 +297,28 @@ async function sendCommand(): Promise<void> {
       }
       currentOptions = null;
     } else {
-      // Error - show feedback but keep open
+      // Error - show feedback with message, keep open
       input.classList.add("error");
-      setTimeout(() => input.classList.remove("error"), 500);
+      const savedPlaceholder = input.placeholder;
+      if (result.error) {
+        input.value = "";
+        input.placeholder = result.error;
+      }
+      setTimeout(() => {
+        input.classList.remove("error");
+        input.placeholder = savedPlaceholder;
+      }, 2000);
     }
   } catch (err) {
     console.error("Failed to send command:", err);
     input.classList.add("error");
-    setTimeout(() => input.classList.remove("error"), 500);
+    const savedPlaceholder = input.placeholder;
+    input.value = "";
+    input.placeholder = err instanceof Error ? err.message : "Send failed";
+    setTimeout(() => {
+      input.classList.remove("error");
+      input.placeholder = savedPlaceholder;
+    }, 2000);
   } finally {
     input.disabled = false;
     sendBtn.disabled = false;

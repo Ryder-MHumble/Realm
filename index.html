@@ -151,25 +151,32 @@
           </form>
           <!-- Voice mode (hidden, replaces prompt container when recording) -->
           <div id="voice-mode" class="voice-mode hidden">
-            <div class="voice-mode-indicator">
-              <span class="voice-record-dot"></span>
-              <span class="voice-mode-text" data-i18n="voice.listening">Listening...</span>
+            <div class="voice-mode-top">
+              <div class="voice-mode-indicator">
+                <span class="voice-record-dot"></span>
+                <span class="voice-mode-text" data-i18n="voice.listening">Listening...</span>
+              </div>
+              <div class="voice-bars">
+                <div class="voice-bar" data-bar="0"></div>
+                <div class="voice-bar" data-bar="1"></div>
+                <div class="voice-bar" data-bar="2"></div>
+                <div class="voice-bar" data-bar="3"></div>
+                <div class="voice-bar" data-bar="4"></div>
+                <div class="voice-bar" data-bar="5"></div>
+                <div class="voice-bar" data-bar="6"></div>
+                <div class="voice-bar" data-bar="7"></div>
+                <div class="voice-bar" data-bar="8"></div>
+                <div class="voice-bar" data-bar="9"></div>
+              </div>
+              <div class="voice-mode-actions">
+                <button type="button" id="voice-lang-btn" class="voice-lang-btn" data-i18n-title="voice.switchLang" title="Switch voice language">EN</button>
+                <button type="button" id="voice-send-btn" class="voice-action-btn voice-action-send">↗ <span data-i18n="common.send">Send</span></button>
+                <button type="button" id="voice-stop-btn" class="voice-action-btn voice-action-stop">◼ <span data-i18n="common.stop">Stop</span></button>
+              </div>
             </div>
-            <div class="voice-bars">
-              <div class="voice-bar" data-bar="0"></div>
-              <div class="voice-bar" data-bar="1"></div>
-              <div class="voice-bar" data-bar="2"></div>
-              <div class="voice-bar" data-bar="3"></div>
-              <div class="voice-bar" data-bar="4"></div>
-              <div class="voice-bar" data-bar="5"></div>
-              <div class="voice-bar" data-bar="6"></div>
-              <div class="voice-bar" data-bar="7"></div>
-              <div class="voice-bar" data-bar="8"></div>
-              <div class="voice-bar" data-bar="9"></div>
-            </div>
-            <div class="voice-mode-actions">
-              <button type="button" id="voice-send-btn" class="voice-action-btn voice-action-send">↗ <span data-i18n="common.send">Send</span></button>
-              <button type="button" id="voice-stop-btn" class="voice-action-btn voice-action-stop">◼ <span data-i18n="common.stop">Stop</span></button>
+            <div id="voice-transcript" class="voice-transcript hidden">
+              <span id="voice-transcript-text" class="voice-transcript-final"></span>
+              <span id="voice-transcript-interim" class="voice-transcript-interim"></span>
             </div>
           </div>
           <div id="prompt-status-bar">
