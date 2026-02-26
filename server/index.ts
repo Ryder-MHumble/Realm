@@ -24,6 +24,8 @@ import { GroupsManager } from "./managers/GroupsManager.js";
 import { TokenTracker } from "./managers/TokenTracker.js";
 import { PermissionManager } from "./managers/PermissionManager.js";
 import { SettingsManager } from "./managers/SettingsManager.js";
+import { AutoCompactManager } from "./managers/AutoCompactManager.js";
+import { AutoContinueManager } from "./managers/AutoContinueManager.js";
 
 // Existing managers (untouched)
 import { GitStatusManager } from "./GitStatusManager.js";
@@ -143,6 +145,14 @@ function main() {
     logN,
   );
 
+  // ---- Create automation managers ----
+  const autoCompactManager = new AutoCompactManager(
+    settingsManager.getAutoCompact() || undefined,
+  );
+  const autoContinueManager = new AutoContinueManager(
+    settingsManager.getAutoContinue() || undefined,
+  );
+
   // ---- Wire broadcast callbacks ----
   const broadcast = wsManager.broadcast.bind(wsManager);
   sessionManager.setBroadcast(broadcast);
@@ -169,9 +179,10 @@ function main() {
     permissionManager.clearSession(id),
   );
 
-  // Events → Sessions + Notifications
+  // Events → Sessions + Notifications + Auto-Continue
   eventProcessor.setEventHandler((event) => {
     sessionManager.handleEvent(event);
+    autoContinueManager.handleEvent(event);
 
     // Send notifications on stop events
     if (event.type === "stop" && notificationManager.hasActiveChannels()) {
@@ -207,6 +218,38 @@ function main() {
   permissionManager.setStatusChangeHandler((sessionId, status, tool) =>
     sessionManager.updateSessionStatus(sessionId, status, tool),
   );
+
+  // Token → Auto-Compact
+  tokenTracker.setTokenUpdateHandler((tmuxSession, tokens) => {
+    autoCompactManager.onTokenUpdate(tmuxSession, tokens);
+  });
+  autoCompactManager.setSessionProvider(() =>
+    Array.from(sessionManager.getSessions()),
+  );
+  autoCompactManager.setSendPrompt((id, prompt) =>
+    sessionManager.sendPromptToSession(id, prompt),
+  );
+  autoCompactManager.setBroadcast(broadcast);
+
+  // Auto-Continue wiring
+  autoContinueManager.setSendPrompt((claudeSessionId, prompt) => {
+    const managed = sessionManager.findManagedSession(claudeSessionId);
+    if (!managed) return Promise.resolve({ ok: false });
+    return sessionManager.sendPromptToSession(managed.id, prompt);
+  });
+  autoContinueManager.setBroadcast(broadcast);
+  autoContinueManager.setSessionStatusProvider((claudeSessionId) => {
+    const managed = sessionManager.findManagedSession(claudeSessionId);
+    return managed?.status;
+  });
+
+  // Sync automation configs when settings change
+  settingsManager.onChange(() => {
+    const ac = settingsManager.getAutoCompact();
+    if (ac) autoCompactManager.updateConfig(ac);
+    const acn = settingsManager.getAutoContinue();
+    if (acn) autoContinueManager.updateConfig(acn);
+  });
 
   // ---- Startup cleanup ----
   cleanupOnStartup(config.eventsFile, config.maxEvents, config.execPath);
@@ -262,6 +305,8 @@ function main() {
     agentRegistry,
     settingsManager,
     notificationManager,
+    autoCompactManager,
+    autoContinueManager,
   };
 
   // ---- Create HTTP server ----

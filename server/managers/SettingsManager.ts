@@ -11,6 +11,8 @@ import { dirname } from "path";
 import type {
   AgentProviderSettings,
   AgentProviderSettingsRedacted,
+  AutoCompactSettings,
+  AutoContinueSettings,
   LLMProviderConfig,
   LLMProviderConfigRedacted,
   NotificationChannelConfig,
@@ -59,6 +61,8 @@ export class SettingsManager {
         llmProviders: data.llmProviders || {},
         defaultProvider: data.defaultProvider,
         notificationChannels: data.notificationChannels || {},
+        autoCompact: data.autoCompact,
+        autoContinue: data.autoContinue,
       };
 
       const providerCount = Object.keys(this.settings.llmProviders).length;
@@ -96,6 +100,8 @@ export class SettingsManager {
       llmProviders: redactedProviders,
       defaultProvider: this.settings.defaultProvider,
       notificationChannels: this.settings.notificationChannels,
+      autoCompact: this.settings.autoCompact,
+      autoContinue: this.settings.autoContinue,
     };
   }
 
@@ -123,6 +129,29 @@ export class SettingsManager {
       }
     }
 
+    if (updates.autoCompact) {
+      this.settings.autoCompact = {
+        ...(this.settings.autoCompact || {
+          enabled: false,
+          threshold: 150_000,
+          cooldownSeconds: 120,
+        }),
+        ...updates.autoCompact,
+      };
+    }
+
+    if (updates.autoContinue) {
+      this.settings.autoContinue = {
+        ...(this.settings.autoContinue || {
+          enabled: false,
+          maxRetries: 3,
+          cooldownSeconds: 5,
+          continuePrompt: "continue",
+        }),
+        ...updates.autoContinue,
+      };
+    }
+
     this.save();
     this.broadcastSettings();
     log("Settings updated");
@@ -146,6 +175,29 @@ export class SettingsManager {
 
     if (settings.notificationChannels !== undefined) {
       this.settings.notificationChannels = settings.notificationChannels;
+    }
+
+    if (settings.autoCompact !== undefined) {
+      this.settings.autoCompact = {
+        ...(this.settings.autoCompact || {
+          enabled: false,
+          threshold: 150_000,
+          cooldownSeconds: 120,
+        }),
+        ...settings.autoCompact,
+      };
+    }
+
+    if (settings.autoContinue !== undefined) {
+      this.settings.autoContinue = {
+        ...(this.settings.autoContinue || {
+          enabled: false,
+          maxRetries: 3,
+          cooldownSeconds: 5,
+          continuePrompt: "continue",
+        }),
+        ...settings.autoContinue,
+      };
     }
 
     this.save();
@@ -184,6 +236,16 @@ export class SettingsManager {
   /** Get a specific notification channel config */
   getNotificationChannel(name: string): NotificationChannelConfig | undefined {
     return this.settings.notificationChannels[name];
+  }
+
+  /** Get auto-compact settings */
+  getAutoCompact(): AutoCompactSettings | undefined {
+    return this.settings.autoCompact;
+  }
+
+  /** Get auto-continue settings */
+  getAutoContinue(): AutoContinueSettings | undefined {
+    return this.settings.autoContinue;
   }
 
   /** Get all enabled notification channels */

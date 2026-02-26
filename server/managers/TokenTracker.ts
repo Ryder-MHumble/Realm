@@ -22,6 +22,9 @@ export class TokenTracker {
 
   private broadcastFn: ((msg: ServerMessage) => void) | null = null;
   private sessionProvider: (() => ManagedSession[]) | null = null;
+  private tokenUpdateHandler:
+    | ((tmuxSession: string, tokens: number) => void)
+    | null = null;
   private defaultTmuxSession: string;
 
   constructor(defaultTmuxSession: string) {
@@ -34,6 +37,12 @@ export class TokenTracker {
 
   setSessionProvider(provider: () => ManagedSession[]): void {
     this.sessionProvider = provider;
+  }
+
+  setTokenUpdateHandler(
+    fn: (tmuxSession: string, tokens: number) => void,
+  ): void {
+    this.tokenUpdateHandler = fn;
   }
 
   /** Get token data for a session */
@@ -129,6 +138,8 @@ export class TokenTracker {
               cumulative: session.cumulative,
             },
           } as ServerMessage);
+
+          this.tokenUpdateHandler?.(tmuxSession, tokens);
         } else if (tokens < session.lastSeen && tokens > 0) {
           session.lastSeen = tokens;
           session.lastUpdate = Date.now();
@@ -144,10 +155,7 @@ export class TokenTracker {
  * Patterns: ↓ 879 tokens, ↓ 1,234 tokens, ↓ 12.5k tokens
  */
 function parseTokensFromOutput(output: string): number | null {
-  const patterns = [
-    /↓\s*([0-9,]+)\s*tokens?/gi,
-    /↓\s*([0-9.]+)k\s*tokens?/gi,
-  ];
+  const patterns = [/↓\s*([0-9,]+)\s*tokens?/gi, /↓\s*([0-9.]+)k\s*tokens?/gi];
 
   let maxTokens = 0;
 

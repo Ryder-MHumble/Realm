@@ -8,7 +8,11 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import type { UpdateSettingsRequest } from "../../shared/types.js";
 import type { ServerContext } from "./router.js";
-import { collectRequestBody, jsonResponse, errorResponse } from "./httpUtils.js";
+import {
+  collectRequestBody,
+  jsonResponse,
+  errorResponse,
+} from "./httpUtils.js";
 
 export function handleSettingsRoutes(
   req: IncomingMessage,
@@ -129,6 +133,64 @@ export function handleSettingsRoutes(
     } else {
       errorResponse(res, 503, "Notification system not initialized");
     }
+    return true;
+  }
+
+  // GET /settings/auto-compact — return auto-compact config
+  if (req.method === "GET" && req.url === "/settings/auto-compact") {
+    const config = ctx.autoCompactManager?.getConfig();
+    jsonResponse(res, 200, { ok: true, config: config || null });
+    return true;
+  }
+
+  // PATCH /settings/auto-compact — update auto-compact config
+  if (req.method === "PATCH" && req.url === "/settings/auto-compact") {
+    collectRequestBody(req)
+      .then((body) => {
+        try {
+          const data = JSON.parse(body);
+          ctx.autoCompactManager?.updateConfig(data);
+          settingsManager.updateSettings({ autoCompact: data });
+          jsonResponse(res, 200, {
+            ok: true,
+            config: ctx.autoCompactManager?.getConfig(),
+          });
+        } catch {
+          errorResponse(res, 400, "Invalid JSON");
+        }
+      })
+      .catch(() => {
+        jsonResponse(res, 413, { error: "Request body too large" });
+      });
+    return true;
+  }
+
+  // GET /settings/auto-continue — return auto-continue config
+  if (req.method === "GET" && req.url === "/settings/auto-continue") {
+    const config = ctx.autoContinueManager?.getConfig();
+    jsonResponse(res, 200, { ok: true, config: config || null });
+    return true;
+  }
+
+  // PATCH /settings/auto-continue — update auto-continue config
+  if (req.method === "PATCH" && req.url === "/settings/auto-continue") {
+    collectRequestBody(req)
+      .then((body) => {
+        try {
+          const data = JSON.parse(body);
+          ctx.autoContinueManager?.updateConfig(data);
+          settingsManager.updateSettings({ autoContinue: data });
+          jsonResponse(res, 200, {
+            ok: true,
+            config: ctx.autoContinueManager?.getConfig(),
+          });
+        } catch {
+          errorResponse(res, 400, "Invalid JSON");
+        }
+      })
+      .catch(() => {
+        jsonResponse(res, 413, { error: "Request body too large" });
+      });
     return true;
   }
 

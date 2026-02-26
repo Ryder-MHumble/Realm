@@ -16,6 +16,10 @@ import type {
   ClaudeEvent,
   PreToolUseEvent,
   PostToolUseEvent,
+  SessionStartEvent,
+  SessionEndEvent,
+  PreCompactEvent,
+  NotificationEvent,
 } from "../../shared/types";
 
 /** Max visible tool chain items before auto-collapse */
@@ -234,6 +238,20 @@ export class FeedManager {
     this.toolChainCollapsed = false;
 
     return chain;
+  }
+
+  /**
+   * Clear all feed content (used when /clear is executed)
+   */
+  clearFeed(): void {
+    if (!this.feedEl) return;
+    this.feedEl.innerHTML = "";
+    this.eventIds.clear();
+    this.pendingItems.clear();
+    this.completedData.clear();
+    this.closeTurnGroup();
+    this.thinkingIndicators.clear();
+    this.currentTurnCumulativeText = "";
   }
 
   /**
@@ -740,6 +758,150 @@ export class FeedManager {
 
         // Close the turn group
         this.closeTurnGroup();
+        break;
+      }
+
+      case "session_end": {
+        const e = event as SessionEndEvent;
+
+        this.closeTurnGroup();
+
+        if (e.reason === "clear") {
+          this.clearFeed();
+        }
+
+        const item = document.createElement("div");
+        item.className = "feed-item lifecycle compact";
+        item.dataset.eventId = event.id;
+        item.dataset.sessionId = event.sessionId;
+
+        const reasonLabels: Record<string, string> = {
+          clear: t("feed.sessionCleared"),
+          logout: t("feed.sessionLogout"),
+          prompt_input_exit: t("feed.sessionExited"),
+          other: t("feed.sessionEnded"),
+        };
+        const label = reasonLabels[e.reason] || reasonLabels.other;
+        const icon = e.reason === "clear" ? "🧹" : "👋";
+
+        item.innerHTML = `
+          <div class="feed-item-header">
+            <div class="feed-item-icon">${icon}</div>
+            <div class="feed-item-title">${label}</div>
+            <div class="feed-item-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
+          </div>
+        `;
+        this.feedEl!.appendChild(item);
+        break;
+      }
+
+      case "session_start": {
+        const e = event as SessionStartEvent;
+
+        this.closeTurnGroup();
+
+        const item = document.createElement("div");
+        item.className = "feed-item lifecycle compact";
+        item.dataset.eventId = event.id;
+        item.dataset.sessionId = event.sessionId;
+
+        const sourceLabels: Record<string, string> = {
+          startup: t("feed.sessionStarted"),
+          resume: t("feed.sessionResumed"),
+          clear: t("feed.sessionRestarted"),
+          compact: t("feed.sessionCompacted"),
+        };
+        const label = sourceLabels[e.source] || sourceLabels.startup;
+        const icon = e.source === "compact" ? "📦" : "🚀";
+
+        item.innerHTML = `
+          <div class="feed-item-header">
+            <div class="feed-item-icon">${icon}</div>
+            <div class="feed-item-title">${label}</div>
+            <div class="feed-item-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
+          </div>
+        `;
+        this.feedEl!.appendChild(item);
+        break;
+      }
+
+      case "pre_compact": {
+        const e = event as PreCompactEvent;
+
+        const item = document.createElement("div");
+        item.className = "feed-item lifecycle compact";
+        item.dataset.eventId = event.id;
+        item.dataset.sessionId = event.sessionId;
+
+        const label =
+          e.trigger === "auto"
+            ? t("feed.compactAuto")
+            : t("feed.compactManual");
+
+        item.innerHTML = `
+          <div class="feed-item-header">
+            <div class="feed-item-icon">📦</div>
+            <div class="feed-item-title">${label}</div>
+            <div class="feed-item-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
+          </div>
+        `;
+
+        if (
+          this.currentTurnGroup &&
+          this.currentTurnSessionId === event.sessionId
+        ) {
+          this.currentTurnGroup.appendChild(item);
+        } else {
+          this.feedEl!.appendChild(item);
+        }
+        break;
+      }
+
+      case "notification": {
+        const e = event as NotificationEvent;
+
+        if (
+          !["auto_continue", "auto_continue_limit", "auto_compact"].includes(
+            e.notificationType,
+          )
+        ) {
+          return;
+        }
+
+        const item = document.createElement("div");
+        item.className = "feed-item lifecycle compact";
+        item.dataset.eventId = event.id;
+        item.dataset.sessionId = event.sessionId;
+
+        let icon = "⚙️";
+        let label = e.message;
+        if (e.notificationType === "auto_continue") {
+          icon = "🔄";
+          label = t("feed.autoContinue");
+        } else if (e.notificationType === "auto_continue_limit") {
+          icon = "⚠️";
+          label = t("feed.autoContinueMax");
+        } else if (e.notificationType === "auto_compact") {
+          icon = "📦";
+          label = t("feed.compactAuto");
+        }
+
+        item.innerHTML = `
+          <div class="feed-item-header">
+            <div class="feed-item-icon">${icon}</div>
+            <div class="feed-item-title">${label}</div>
+            <div class="feed-item-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
+          </div>
+        `;
+
+        if (
+          this.currentTurnGroup &&
+          this.currentTurnSessionId === event.sessionId
+        ) {
+          this.currentTurnGroup.appendChild(item);
+        } else {
+          this.feedEl!.appendChild(item);
+        }
         break;
       }
 

@@ -44,6 +44,19 @@ const zh = {
     showDetails: "展开更多",
     hideDetails: "收起",
     noDetails: "无详情",
+    // 生命周期事件
+    sessionCleared: "会话已清除",
+    sessionLogout: "已登出",
+    sessionExited: "会话已退出",
+    sessionEnded: "会话已结束",
+    sessionStarted: "会话已启动",
+    sessionResumed: "会话已恢复",
+    sessionRestarted: "会话已重启",
+    sessionCompacted: "上下文已压缩",
+    compactAuto: "正在自动压缩上下文...",
+    compactManual: "正在压缩上下文...",
+    autoContinue: "正在自动继续...",
+    autoContinueMax: "自动继续已达上限",
   },
 
   // Time formatting

@@ -44,6 +44,19 @@ const en = {
     showDetails: "Show more",
     hideDetails: "Show less",
     noDetails: "No details",
+    // Lifecycle events
+    sessionCleared: "Session cleared",
+    sessionLogout: "Logged out",
+    sessionExited: "Session exited",
+    sessionEnded: "Session ended",
+    sessionStarted: "Session started",
+    sessionResumed: "Session resumed",
+    sessionRestarted: "Session restarted",
+    sessionCompacted: "Context compacted",
+    compactAuto: "Auto-compacting context...",
+    compactManual: "Compacting context...",
+    autoContinue: "Auto-continuing...",
+    autoContinueMax: "Auto-continue limit reached",
   },
 
   // Time formatting

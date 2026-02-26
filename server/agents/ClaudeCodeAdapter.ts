@@ -27,6 +27,18 @@ const EXEC_PATH = [
 
 const EXEC_OPTIONS = { env: { ...process.env, PATH: EXEC_PATH } };
 
+/** Build env prefix string to inject into tmux session commands */
+function buildEnvPrefix(): string {
+  const parts = [`PATH=${EXEC_PATH}`];
+  if (process.env.ANTHROPIC_BASE_URL) {
+    parts.push(`ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL}`);
+  }
+  if (process.env.ANTHROPIC_AUTH_TOKEN) {
+    parts.push(`ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN}`);
+  }
+  return parts.join(" ");
+}
+
 function execFileAsync(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     execFile(cmd, args, EXEC_OPTIONS, (error) => {
@@ -108,7 +120,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           tmuxSession,
           "-c",
           cwd,
-          `PATH=${EXEC_PATH} ${claudeCmd}`,
+          `${buildEnvPrefix()} ${claudeCmd}`,
         ],
         EXEC_OPTIONS,
         (error) => {
@@ -190,7 +202,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           session.tmuxSession,
           "-c",
           cwd,
-          `PATH=${EXEC_PATH} claude --permission-mode=bypassPermissions --dangerously-skip-permissions`,
+          `${buildEnvPrefix()} claude --permission-mode=bypassPermissions --dangerously-skip-permissions`,
         ],
         EXEC_OPTIONS,
         (error) => {

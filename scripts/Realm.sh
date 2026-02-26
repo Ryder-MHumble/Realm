@@ -1,6 +1,6 @@
 #!/bin/bash
 # Vibecraft — start / stop / status
-# Usage: ./scripts/vibecraft.sh [start|stop|status]
+# Usage: ./scripts/Realm.sh [start|stop|status]
 
 set -e
 
@@ -88,7 +88,7 @@ cmd_start() {
     echo -e "    API        ${CYAN}http://localhost:$SERVER_PORT${NC}"
     echo -e "    tmux       ${DIM}tmux attach -t $TMUX_SESSION${NC}"
     echo ""
-    echo -e "  ${DIM}Stop with: ./scripts/vibecraft.sh stop${NC}"
+    echo -e "  ${DIM}Stop with: ./scripts/Realm.sh stop${NC}"
   else
     echo ""
     echo -e "  ${RED}✗ Server did not start in time.${NC}"

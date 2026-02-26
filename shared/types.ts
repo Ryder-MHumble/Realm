@@ -699,6 +699,26 @@ export interface NotificationChannelConfig {
   config: Record<string, string>;
 }
 
+/** Auto-compact settings */
+export interface AutoCompactSettings {
+  enabled: boolean;
+  /** Token threshold to trigger compact (default: 150000) */
+  threshold: number;
+  /** Minimum seconds between compactions (default: 120) */
+  cooldownSeconds: number;
+}
+
+/** Auto-continue settings */
+export interface AutoContinueSettings {
+  enabled: boolean;
+  /** Max consecutive auto-continues per task (default: 3) */
+  maxRetries: number;
+  /** Minimum seconds between continues (default: 5) */
+  cooldownSeconds: number;
+  /** Prompt text to send (default: "continue") */
+  continuePrompt: string;
+}
+
 /** Complete agent provider settings (persisted server-side) */
 export interface AgentProviderSettings {
   /** Named LLM provider configurations */
@@ -707,6 +727,10 @@ export interface AgentProviderSettings {
   defaultProvider?: string;
   /** Named notification channel configurations */
   notificationChannels: Record<string, NotificationChannelConfig>;
+  /** Auto-compact configuration */
+  autoCompact?: AutoCompactSettings;
+  /** Auto-continue configuration */
+  autoContinue?: AutoContinueSettings;
 }
 
 /** Redacted settings sent to client */
@@ -714,6 +738,8 @@ export interface AgentProviderSettingsRedacted {
   llmProviders: Record<string, LLMProviderConfigRedacted>;
   defaultProvider?: string;
   notificationChannels: Record<string, NotificationChannelConfig>;
+  autoCompact?: AutoCompactSettings;
+  autoContinue?: AutoContinueSettings;
 }
 
 // ============================================================================
@@ -752,6 +778,8 @@ export interface UpdateSettingsRequest {
   llmProviders?: Record<string, LLMProviderConfig>;
   defaultProvider?: string;
   notificationChannels?: Record<string, NotificationChannelConfig>;
+  autoCompact?: Partial<AutoCompactSettings>;
+  autoContinue?: Partial<AutoContinueSettings>;
 }
 
 // ============================================================================
