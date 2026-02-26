@@ -16,6 +16,8 @@ import type { PermissionManager } from "../managers/PermissionManager.js";
 import type { WebSocketManager } from "../managers/WebSocketManager.js";
 import type { ProjectsManager } from "../ProjectsManager.js";
 import type { AgentRegistry } from "../agents/AgentRegistry.js";
+import type { SettingsManager } from "../managers/SettingsManager.js";
+import type { NotificationManager } from "../bot/NotificationManager.js";
 import { isOriginAllowed } from "../config.js";
 
 import { handleEventRoutes } from "./eventsHandler.js";
@@ -26,6 +28,7 @@ import { handleProjectRoutes } from "./projectsHandler.js";
 import { handlePromptRoutes } from "./promptHandler.js";
 import { handleAgentRoutes } from "./agentsHandler.js";
 import { handleUploadRoutes } from "./uploadHandler.js";
+import { handleSettingsRoutes } from "./settingsHandler.js";
 import { serveStaticFile } from "./staticHandler.js";
 
 /** All dependencies available to route handlers */
@@ -40,6 +43,8 @@ export interface ServerContext {
   wsManager: WebSocketManager;
   projectsManager: ProjectsManager;
   agentRegistry: AgentRegistry;
+  settingsManager: SettingsManager;
+  notificationManager: NotificationManager | null;
 }
 
 /** Main HTTP request handler */
@@ -79,6 +84,7 @@ export function routeRequest(
   if (handleProjectRoutes(req, res, ctx)) return;
   if (handleGroupRoutes(req, res, ctx)) return;
   if (handleTileRoutes(req, res, ctx)) return;
+  if (handleSettingsRoutes(req, res, ctx)) return;
   if (handleUploadRoutes(req, res, ctx)) return;
 
   // Fallback: static file serving

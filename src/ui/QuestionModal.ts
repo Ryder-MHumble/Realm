@@ -3,6 +3,10 @@
  *
  * Displays questions from Claude's AskUserQuestion tool
  * and sends responses back via the API.
+ *
+ * AskUserQuestion shows an interactive selector in the terminal.
+ * We navigate it using arrow keys (Down × N + Enter) rather than
+ * pasting text, which the selector can't handle.
  */
 
 import { soundManager } from "../audio";
@@ -66,7 +70,7 @@ export function setupQuestionModal(ctx: QuestionModalContext): void {
     const text = otherInput?.value.trim();
     if (text) {
       if (context?.soundEnabled) soundManager.play("modal_confirm");
-      sendQuestionResponse(text);
+      sendOtherText(text);
     }
   });
 
@@ -77,7 +81,7 @@ export function setupQuestionModal(ctx: QuestionModalContext): void {
       const text = otherInput.value.trim();
       if (text) {
         if (context?.soundEnabled) soundManager.play("modal_confirm");
-        sendQuestionResponse(text);
+        sendOtherText(text);
       }
     }
   });
@@ -125,8 +129,8 @@ export function showQuestionModal(data: QuestionData): void {
   // Clear previous options
   optionsContainer.innerHTML = "";
 
-  // Add option buttons
-  q.options.forEach((opt) => {
+  // Add option buttons (with index for selector navigation)
+  q.options.forEach((opt, index) => {
     const btn = document.createElement("button");
     btn.className = "question-option";
     btn.innerHTML = `
@@ -135,7 +139,7 @@ export function showQuestionModal(data: QuestionData): void {
     `;
     btn.addEventListener("click", () => {
       if (context?.soundEnabled) soundManager.play("modal_confirm");
-      sendQuestionResponse(opt.label);
+      sendOptionByIndex(index);
     });
     optionsContainer.appendChild(btn);
   });
@@ -197,30 +201,85 @@ export function isQuestionModalVisible(): boolean {
 }
 
 // ============================================================================
-// Internal
+// Internal — Interactive selector navigation
 // ============================================================================
 
-async function sendQuestionResponse(response: string): Promise<void> {
+/**
+ * Select a predefined option by navigating the terminal selector.
+ * Sends Down arrow keys × optionIndex, then Enter.
+ */
+async function sendOptionByIndex(optionIndex: number): Promise<void> {
   if (!currentQuestion || !context) return;
 
   const sessionId = currentQuestion.managedSessionId;
+  if (!sessionId) {
+    // Fallback: send option label as text prompt to default tmux session
+    await sendLegacyResponse(
+      currentQuestion.questions[0]?.options[optionIndex]?.label || "",
+    );
+    return;
+  }
 
   try {
-    if (sessionId) {
-      // Send to managed session
-      await fetch(`${context.apiUrl}/sessions/${sessionId}/prompt`, {
+    await fetch(
+      `${context.apiUrl}/sessions/${sessionId}/question-response`,
+      {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: response }),
-      });
-    } else {
-      // Send to default tmux session
-      await fetch(`${context.apiUrl}/prompt`, {
+        body: JSON.stringify({ optionIndex }),
+      },
+    );
+  } catch (e) {
+    console.error("Failed to send question response:", e);
+  }
+
+  hideQuestionModal();
+}
+
+/**
+ * Send custom "Other" text by navigating past all options to "Other",
+ * selecting it, then typing the custom text.
+ */
+async function sendOtherText(text: string): Promise<void> {
+  if (!currentQuestion || !context) return;
+
+  const sessionId = currentQuestion.managedSessionId;
+  const totalOptions = currentQuestion.questions[0]?.options.length || 0;
+
+  if (!sessionId) {
+    await sendLegacyResponse(text);
+    return;
+  }
+
+  try {
+    await fetch(
+      `${context.apiUrl}/sessions/${sessionId}/question-response`,
+      {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: response, send: true }),
-      });
-    }
+        body: JSON.stringify({ text, totalOptions }),
+      },
+    );
+  } catch (e) {
+    console.error("Failed to send question response:", e);
+  }
+
+  hideQuestionModal();
+}
+
+/**
+ * Legacy fallback: send response as a plain text prompt
+ * (used when no managed session ID is available)
+ */
+async function sendLegacyResponse(response: string): Promise<void> {
+  if (!context) return;
+
+  try {
+    await fetch(`${context.apiUrl}/prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: response, send: true }),
+    });
   } catch (e) {
     console.error("Failed to send question response:", e);
   }

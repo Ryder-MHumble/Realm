@@ -100,11 +100,32 @@ const en = {
     optContinue: "Continue",
     optSkipPerms: "Skip permissions",
     optChrome: "Chrome",
+    // Agent type & launch mode
+    agentType: "Agent Type",
+    launchMode: "Launch Mode",
+    localProcess: "Local Process",
+    docker: "Docker / Container",
+    gateway: "Remote Gateway",
+    binaryPath: "Binary / Project Path",
+    dockerImage: "Docker Image",
+    appleContainer: "Use Apple Container",
+    gatewayUrl: "Gateway URL",
+    gatewayToken: "Auth Token",
+    llmProvider: "LLM Provider",
+    useDefault: "Use Default",
+    notifications: "Notifications",
   },
 
   // Settings modal
   settings: {
     title: "Settings",
+    tabGeneral: "General",
+    tabWorld: "World",
+    tabClaw: "Claw",
+    tabNotifications: "Notifications",
+    tabShortcuts: "Shortcuts",
+    clawHint:
+      "Configure LLM providers for Claw agents (OpenClaw, NanoClaw, ZeroClaw). Claude Code uses its own API key and does not need this.",
     audio: "Audio",
     volume: "Volume",
     spatialAudio: "Spatial Audio",
@@ -125,6 +146,28 @@ const en = {
     keybindHint:
       "Click a keybind to change it. Press the new key combination, or Escape to cancel.",
     language: "Language",
+    // LLM Providers
+    llmProviders: "LLM Providers",
+    addProvider: "Add Provider",
+    providerName: "Name",
+    providerType: "Provider",
+    providerModel: "Model",
+    providerApiKey: "API Key",
+    providerBaseUrl: "Base URL",
+    providerConfigured: "configured",
+    providerNone: "No LLM providers configured",
+    // Notification Channels
+    notificationChannels: "Notification Channels",
+    addChannel: "Add Channel",
+    channelPlatform: "Platform",
+    channelWebhookUrl: "Webhook URL",
+    channelBotToken: "Bot Token",
+    channelChatId: "Chat ID",
+    channelSecret: "Secret",
+    channelTest: "Test",
+    channelTestSuccess: "Test message sent!",
+    channelTestFailed: "Test failed",
+    channelNone: "No notification channels configured",
   },
 
   // About modal

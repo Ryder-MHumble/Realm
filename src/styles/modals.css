@@ -416,6 +416,62 @@
   visibility: visible;
 }
 
+/* Settings Tab Bar */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+
+.settings-tab-btn {
+  flex: 1;
+  padding: 7px 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.settings-tab-btn:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-tab-btn.active {
+  color: #c4b5fd;
+  background: rgba(167, 139, 250, 0.12);
+  border-color: rgba(167, 139, 250, 0.3);
+}
+
+/* Settings Tab Content */
+.settings-tab-content {
+  display: none;
+}
+
+.settings-tab-content.active {
+  display: block;
+}
+
+/* Claw tab hint */
+.settings-tab-hint {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: rgba(167, 139, 250, 0.06);
+  border-left: 2px solid rgba(167, 139, 250, 0.3);
+  border-radius: 0 6px 6px 0;
+}
+
 .settings-actions {
   display: flex;
   flex-direction: column;
@@ -2032,4 +2088,197 @@
 
 .zone-command-input::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
+}
+
+/* ============================================================================
+   Settings: LLM Provider & Notification Channel Cards
+   ============================================================================ */
+
+.settings-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.settings-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-card:hover {
+  border-color: rgba(167, 139, 250, 0.3);
+}
+
+.settings-card-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.settings-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-card-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.settings-card-detail {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-card-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.settings-card-status.active {
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+}
+
+.settings-card-status.inactive {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.settings-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.settings-card-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 3px 8px;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.settings-card-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.settings-card-btn.danger:hover {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.settings-card-btn.test:hover {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.settings-empty {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  font-style: italic;
+  padding: 8px 0;
+}
+
+/* Inline edit form (inside card list) */
+.settings-inline-form {
+  background: rgba(167, 139, 250, 0.05);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-inline-form .form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-inline-form .form-row label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.settings-inline-form .form-row input,
+.settings-inline-form .form-row select {
+  flex: 1;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.settings-inline-form .form-row input:focus,
+.settings-inline-form .form-row select:focus {
+  outline: none;
+  border-color: rgba(167, 139, 250, 0.5);
+}
+
+.settings-inline-form .form-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* ============================================================================
+   New Zone: Launch Mode Radio Group
+   ============================================================================ */
+
+.modal-radio-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.modal-radio {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.modal-radio:has(input:checked) {
+  background: rgba(167, 139, 250, 0.1);
+  border-color: rgba(167, 139, 250, 0.4);
+  color: #c4b5fd;
+}
+
+.modal-radio input[type="radio"] {
+  accent-color: #a78bfa;
+  margin: 0;
 }

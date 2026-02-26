@@ -10,7 +10,10 @@ import type {
   AgentTypeConfig,
   ClaudeMode,
   FileUploadResponse,
+  GetSettingsResponse,
+  LaunchModeConfig,
   ManagedSession,
+  UpdateSettingsRequest,
 } from "../../shared/types";
 
 export interface SessionFlags {
@@ -71,6 +74,9 @@ export function createSessionAPI(apiUrl: string) {
       description?: string,
       agentType?: AgentType,
       agentConfig?: Record<string, unknown>,
+      launchMode?: LaunchModeConfig,
+      llmProvider?: string,
+      notificationChannels?: string[],
     ): Promise<CreateSessionResponse> {
       try {
         const response = await fetch(`${apiUrl}/sessions`, {
@@ -84,6 +90,9 @@ export function createSessionAPI(apiUrl: string) {
             description,
             agentType,
             agentConfig,
+            launchMode,
+            llmProvider,
+            notificationChannels,
           }),
         });
         return await response.json();
@@ -337,6 +346,92 @@ export function createSessionAPI(apiUrl: string) {
         return await response.json();
       } catch (e) {
         console.error("Error deleting group:", e);
+        return { ok: false, error: "Network error" };
+      }
+    },
+
+    /**
+     * Get agent provider settings (redacted — no API keys)
+     */
+    async getSettings(): Promise<GetSettingsResponse> {
+      try {
+        const response = await fetch(`${apiUrl}/settings`);
+        return await response.json();
+      } catch (e) {
+        console.error("Error fetching settings:", e);
+        return {
+          ok: false,
+          settings: { llmProviders: {}, notificationChannels: {} },
+        };
+      }
+    },
+
+    /**
+     * Update agent provider settings (partial merge)
+     */
+    async updateSettings(
+      updates: UpdateSettingsRequest,
+    ): Promise<GetSettingsResponse> {
+      try {
+        const response = await fetch(`${apiUrl}/settings`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+        return await response.json();
+      } catch (e) {
+        console.error("Error updating settings:", e);
+        return {
+          ok: false,
+          settings: { llmProviders: {}, notificationChannels: {} },
+        };
+      }
+    },
+
+    /**
+     * Send a test notification to a specific channel
+     */
+    async testNotification(channelName: string): Promise<SimpleResponse> {
+      try {
+        const response = await fetch(
+          `${apiUrl}/settings/test-notification/${encodeURIComponent(channelName)}`,
+          { method: "POST" },
+        );
+        return await response.json();
+      } catch (e) {
+        console.error("Error testing notification:", e);
+        return { ok: false, error: "Network error" };
+      }
+    },
+
+    /**
+     * Delete an LLM provider
+     */
+    async deleteLLMProvider(name: string): Promise<SimpleResponse> {
+      try {
+        const response = await fetch(
+          `${apiUrl}/settings/llm/${encodeURIComponent(name)}`,
+          { method: "DELETE" },
+        );
+        return await response.json();
+      } catch (e) {
+        console.error("Error deleting LLM provider:", e);
+        return { ok: false, error: "Network error" };
+      }
+    },
+
+    /**
+     * Delete a notification channel
+     */
+    async deleteNotificationChannel(name: string): Promise<SimpleResponse> {
+      try {
+        const response = await fetch(
+          `${apiUrl}/settings/notification/${encodeURIComponent(name)}`,
+          { method: "DELETE" },
+        );
+        return await response.json();
+      } catch (e) {
+        console.error("Error deleting notification channel:", e);
         return { ok: false, error: "Network error" };
       }
     },

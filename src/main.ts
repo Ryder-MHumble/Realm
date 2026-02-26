@@ -542,6 +542,9 @@ async function createManagedSession(
   description?: string,
   agentType?: import("../shared/types").AgentType,
   agentConfig?: Record<string, unknown>,
+  launchMode?: import("../shared/types").LaunchModeConfig,
+  llmProvider?: string,
+  notificationChannels?: string[],
 ): Promise<void> {
   // Pre-store hint position and pending zone ID BEFORE the API call.
   // The server broadcasts sessions via WebSocket before the HTTP response returns,
@@ -564,6 +567,9 @@ async function createManagedSession(
     description,
     agentType,
     agentConfig,
+    launchMode,
+    llmProvider,
+    notificationChannels,
   );
 
   if (!data.ok) {
@@ -801,13 +807,32 @@ function openNewSessionModal(hintPosition?: { x: number; z: number }): void {
   }
   if (cwdInput) cwdInput.value = "";
 
-  // Reset agent type selector
+  // Reset agent type selector and all agent-specific sections
   const agentTypeSelect = document.getElementById(
     "session-agent-type",
   ) as HTMLSelectElement;
   if (agentTypeSelect) agentTypeSelect.value = "claude_code";
   const claudeCodeOptions = document.getElementById("claude-code-options");
   if (claudeCodeOptions) claudeCodeOptions.style.display = "";
+
+  // Hide non-Claude sections
+  for (const id of [
+    "generic-agent-options",
+    "launch-local-options",
+    "launch-docker-options",
+    "launch-gateway-options",
+    "session-llm-options",
+    "session-notification-options",
+  ]) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  }
+
+  // Reset launch mode to local
+  const localRadio = document.querySelector(
+    'input[name="launch-mode"][value="local"]',
+  ) as HTMLInputElement;
+  if (localRadio) localRadio.checked = true;
 
   modal.classList.add("visible");
 
@@ -838,17 +863,112 @@ function setupManagedSessions(): void {
     setupDirectoryAutocomplete(cwdInput);
   }
 
-  // Agent type selector: show/hide Claude Code-specific options
+  // Agent type selector: show/hide type-specific options
   const agentTypeSelect = document.getElementById(
     "session-agent-type",
   ) as HTMLSelectElement;
   const claudeCodeOptions = document.getElementById("claude-code-options");
-  if (agentTypeSelect && claudeCodeOptions) {
+  const genericAgentOptions = document.getElementById("generic-agent-options");
+  const sessionLlmOptions = document.getElementById("session-llm-options");
+  const sessionNotificationOptions = document.getElementById(
+    "session-notification-options",
+  );
+  const launchLocalOptions = document.getElementById("launch-local-options");
+  const launchDockerOptions = document.getElementById("launch-docker-options");
+  const launchGatewayOptions = document.getElementById(
+    "launch-gateway-options",
+  );
+
+  const updateLaunchModeVisibility = (): void => {
+    const selectedMode =
+      (
+        document.querySelector(
+          'input[name="launch-mode"]:checked',
+        ) as HTMLInputElement
+      )?.value || "local";
+    if (launchLocalOptions)
+      launchLocalOptions.style.display = selectedMode === "local" ? "" : "none";
+    if (launchDockerOptions)
+      launchDockerOptions.style.display =
+        selectedMode === "docker" ? "" : "none";
+    if (launchGatewayOptions)
+      launchGatewayOptions.style.display =
+        selectedMode === "gateway" ? "" : "none";
+  };
+
+  const populateSettingsDropdowns = async (): Promise<void> => {
+    try {
+      const resp = await sessionAPI.getSettings();
+      if (!resp.ok) return;
+      const { settings } = resp;
+
+      // Populate LLM provider dropdown
+      const llmSelect = document.getElementById(
+        "session-llm-provider",
+      ) as HTMLSelectElement;
+      if (llmSelect) {
+        // Keep the first "Use Default" option, remove the rest
+        while (llmSelect.options.length > 1) llmSelect.options.remove(1);
+        for (const [name, config] of Object.entries(settings.llmProviders)) {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = `${name} (${config.provider}${config.model ? " / " + config.model : ""})`;
+          llmSelect.appendChild(opt);
+        }
+      }
+
+      // Populate notification channel checkboxes
+      const channelContainer = document.getElementById(
+        "session-notification-channels",
+      );
+      if (channelContainer) {
+        channelContainer.innerHTML = "";
+        for (const [name, channel] of Object.entries(
+          settings.notificationChannels,
+        )) {
+          if (!channel.enabled) continue;
+          const label = document.createElement("label");
+          label.className = "modal-checkbox";
+          label.innerHTML = `<input type="checkbox" value="${name}" checked /><span class="checkbox-label">${name} (${channel.platform})</span>`;
+          channelContainer.appendChild(label);
+        }
+        if (channelContainer.children.length === 0) {
+          channelContainer.innerHTML =
+            '<span class="field-hint" style="margin:0;">No channels configured</span>';
+        }
+      }
+    } catch {
+      // Settings fetch failed — silently skip
+    }
+  };
+
+  if (agentTypeSelect) {
     agentTypeSelect.addEventListener("change", () => {
-      claudeCodeOptions.style.display =
-        agentTypeSelect.value === "claude_code" ? "" : "none";
+      const isClaudeCode = agentTypeSelect.value === "claude_code";
+      if (claudeCodeOptions)
+        claudeCodeOptions.style.display = isClaudeCode ? "" : "none";
+      if (genericAgentOptions)
+        genericAgentOptions.style.display = isClaudeCode ? "none" : "";
+      if (sessionLlmOptions)
+        sessionLlmOptions.style.display = isClaudeCode ? "none" : "";
+      if (sessionNotificationOptions)
+        sessionNotificationOptions.style.display = isClaudeCode ? "none" : "";
+
+      if (!isClaudeCode) {
+        updateLaunchModeVisibility();
+        populateSettingsDropdowns();
+      } else {
+        if (launchLocalOptions) launchLocalOptions.style.display = "none";
+        if (launchDockerOptions) launchDockerOptions.style.display = "none";
+        if (launchGatewayOptions) launchGatewayOptions.style.display = "none";
+      }
     });
   }
+
+  // Launch mode radio change
+  document.querySelectorAll('input[name="launch-mode"]').forEach((radio) => {
+    radio.addEventListener("change", updateLaunchModeVisibility);
+  });
 
   // Auto-populate name from directory when cwd changes
   if (cwdInput && nameInput) {
@@ -924,6 +1044,65 @@ function setupManagedSessions(): void {
           }
         : {};
 
+    // Collect launch mode config for non-Claude agents
+    let launchMode: import("../shared/types").LaunchModeConfig | undefined;
+    let llmProvider: string | undefined;
+    let notificationChannels: string[] | undefined;
+
+    if (agentType !== "claude_code") {
+      const selectedMode =
+        (
+          document.querySelector(
+            'input[name="launch-mode"]:checked',
+          ) as HTMLInputElement
+        )?.value || "local";
+
+      launchMode = {
+        mode: selectedMode as import("../shared/types").LaunchMode,
+      };
+
+      if (selectedMode === "local") {
+        const binaryPath = (
+          document.getElementById("session-binary-path") as HTMLInputElement
+        )?.value.trim();
+        if (binaryPath) launchMode.binaryPath = binaryPath;
+      } else if (selectedMode === "docker") {
+        const dockerImage = (
+          document.getElementById("session-docker-image") as HTMLInputElement
+        )?.value.trim();
+        const appleContainer = (
+          document.getElementById("session-apple-container") as HTMLInputElement
+        )?.checked;
+        if (dockerImage) launchMode.dockerImage = dockerImage;
+        if (appleContainer) launchMode.useAppleContainer = true;
+      } else if (selectedMode === "gateway") {
+        const gatewayUrl = (
+          document.getElementById("session-gateway-url") as HTMLInputElement
+        )?.value.trim();
+        const gatewayToken = (
+          document.getElementById("session-gateway-token") as HTMLInputElement
+        )?.value.trim();
+        if (gatewayUrl) launchMode.gatewayUrl = gatewayUrl;
+        if (gatewayToken) launchMode.gatewayToken = gatewayToken;
+      }
+
+      // LLM provider
+      const llmSelect = document.getElementById(
+        "session-llm-provider",
+      ) as HTMLSelectElement;
+      if (llmSelect?.value) llmProvider = llmSelect.value;
+
+      // Notification channels
+      const channelCheckboxes = document.querySelectorAll(
+        "#session-notification-channels input[type=checkbox]:checked",
+      ) as NodeListOf<HTMLInputElement>;
+      if (channelCheckboxes.length > 0) {
+        notificationChannels = Array.from(channelCheckboxes).map(
+          (cb) => cb.value,
+        );
+      }
+    }
+
     // Capture hint before closing modal (closeModal clears it)
     const hintPosition = currentModalHint;
 
@@ -959,6 +1138,10 @@ function setupManagedSessions(): void {
       undefined,
       description,
       agentType,
+      undefined,
+      launchMode,
+      llmProvider,
+      notificationChannels,
     );
   };
 
@@ -3593,6 +3776,30 @@ function setupSettingsModal(): void {
 
   if (!modal) return;
 
+  // Setup settings tabs
+  const tabBtns =
+    modal.querySelectorAll<HTMLButtonElement>(".settings-tab-btn");
+  const tabPanels = modal.querySelectorAll<HTMLElement>(
+    ".settings-tab-content",
+  );
+
+  function switchSettingsTab(tabName: string) {
+    tabBtns.forEach((btn) =>
+      btn.classList.toggle("active", btn.dataset.tab === tabName),
+    );
+    tabPanels.forEach((panel) =>
+      panel.classList.toggle("active", panel.dataset.tab === tabName),
+    );
+    localStorage.setItem("vibecraft-settings-tab", tabName);
+  }
+
+  tabBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+      if (tab) switchSettingsTab(tab);
+    });
+  });
+
   // Setup keybind settings UI
   setupKeybindSettings();
   updateVoiceHint();
@@ -3694,6 +3901,14 @@ function setupSettingsModal(): void {
       portStatus.textContent = connected ? "● Connected" : "○ Disconnected";
       portStatus.className = `port-status ${connected ? "connected" : "disconnected"}`;
     }
+    // Render LLM providers and notification channels
+    renderSettingsCards();
+
+    // Restore last active tab
+    const savedTab =
+      localStorage.getItem("vibecraft-settings-tab") || "general";
+    switchSettingsTab(savedTab);
+
     modal.classList.add("visible");
     if (state.soundEnabled) soundManager.play("modal_open");
   });
@@ -3791,6 +4006,285 @@ function setupSettingsModal(): void {
     if (e.key === "Escape" && modal.classList.contains("visible")) {
       closeModal();
     }
+  });
+
+  // ---- LLM Providers & Notification Channels ----
+
+  const llmList = document.getElementById("settings-llm-list");
+  const notifList = document.getElementById("settings-notification-list");
+  const addProviderBtn = document.getElementById("settings-add-provider");
+  const addChannelBtn = document.getElementById("settings-add-channel");
+
+  function escHtml(s: string): string {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function getProviderIcon(provider: string): string {
+    const icons: Record<string, string> = {
+      anthropic: "🅰️",
+      openai: "🤖",
+      google: "🔷",
+      openrouter: "🔀",
+      deepseek: "🌊",
+      ollama: "🦙",
+    };
+    return icons[provider.toLowerCase()] || "⚙️";
+  }
+
+  function getPlatformIcon(platform: string): string {
+    const icons: Record<string, string> = {
+      feishu: "🪶",
+      dingtalk: "🔔",
+      telegram: "✈️",
+      slack: "💬",
+    };
+    return icons[platform.toLowerCase()] || "📢";
+  }
+
+  async function renderSettingsCards(): Promise<void> {
+    if (!llmList || !notifList) return;
+    try {
+      const resp = await sessionAPI.getSettings();
+      if (!resp.ok) return;
+      const { settings } = resp;
+
+      // LLM Providers
+      const providers = settings.llmProviders || {};
+      const providerNames = Object.keys(providers);
+      if (providerNames.length === 0) {
+        llmList.innerHTML = `<div class="settings-empty">${escHtml(t("settings.providerNone"))}</div>`;
+      } else {
+        llmList.innerHTML = providerNames
+          .map((name) => {
+            const p = providers[name];
+            return `<div class="settings-card" data-name="${escHtml(name)}">
+            <span class="settings-card-icon">${getProviderIcon(p.provider)}</span>
+            <div class="settings-card-info">
+              <span class="settings-card-name">${escHtml(name)}</span>
+              <span class="settings-card-detail">${escHtml(p.provider)}${p.model ? " · " + escHtml(p.model) : ""}</span>
+            </div>
+            ${p.hasApiKey ? `<span class="settings-card-status">✓ ${escHtml(t("settings.providerConfigured"))}</span>` : ""}
+            <div class="settings-card-actions">
+              <button class="settings-card-btn delete-provider" data-name="${escHtml(name)}" title="${escHtml(t("common.delete"))}">✕</button>
+            </div>
+          </div>`;
+          })
+          .join("");
+      }
+
+      // Notification Channels
+      const channels = settings.notificationChannels || {};
+      const channelNames = Object.keys(channels);
+      if (channelNames.length === 0) {
+        notifList.innerHTML = `<div class="settings-empty">${escHtml(t("settings.channelNone"))}</div>`;
+      } else {
+        notifList.innerHTML = channelNames
+          .map((name) => {
+            const ch = channels[name];
+            return `<div class="settings-card" data-name="${escHtml(name)}">
+            <span class="settings-card-icon">${getPlatformIcon(ch.platform)}</span>
+            <div class="settings-card-info">
+              <span class="settings-card-name">${escHtml(name)}</span>
+              <span class="settings-card-detail">${escHtml(ch.platform)}${ch.enabled ? "" : " (disabled)"}</span>
+            </div>
+            <div class="settings-card-actions">
+              <button class="settings-card-btn test-channel" data-name="${escHtml(name)}" title="${escHtml(t("settings.channelTest"))}">🔔</button>
+              <button class="settings-card-btn delete-channel" data-name="${escHtml(name)}" title="${escHtml(t("common.delete"))}">✕</button>
+            </div>
+          </div>`;
+          })
+          .join("");
+      }
+
+      // Attach delete provider handlers
+      llmList
+        .querySelectorAll<HTMLButtonElement>(".delete-provider")
+        .forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const name = btn.dataset.name;
+            if (!name) return;
+            await sessionAPI.deleteLLMProvider(name);
+            renderSettingsCards();
+          });
+        });
+
+      // Attach delete channel handlers
+      notifList
+        .querySelectorAll<HTMLButtonElement>(".delete-channel")
+        .forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const name = btn.dataset.name;
+            if (!name) return;
+            await sessionAPI.deleteNotificationChannel(name);
+            renderSettingsCards();
+          });
+        });
+
+      // Attach test channel handlers
+      notifList
+        .querySelectorAll<HTMLButtonElement>(".test-channel")
+        .forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const name = btn.dataset.name;
+            if (!name) return;
+            btn.disabled = true;
+            btn.textContent = "…";
+            try {
+              const result = await sessionAPI.testNotification(name);
+              btn.textContent = result.ok ? "✓" : "✗";
+            } catch {
+              btn.textContent = "✗";
+            }
+            setTimeout(() => {
+              btn.textContent = "🔔";
+              btn.disabled = false;
+            }, 2000);
+          });
+        });
+    } catch (err) {
+      console.warn("Failed to load settings:", err);
+    }
+  }
+
+  // "Add Provider" inline form
+  addProviderBtn?.addEventListener("click", () => {
+    if (!llmList) return;
+    // Remove existing form if any
+    llmList.querySelector(".settings-inline-form")?.remove();
+    const form = document.createElement("div");
+    form.className = "settings-inline-form";
+    form.innerHTML = `
+      <div class="form-row">
+        <input type="text" placeholder="${escHtml(t("settings.providerName"))}" class="llm-name" />
+        <select class="llm-type">
+          <option value="anthropic">Anthropic</option>
+          <option value="openai">OpenAI</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="google">Google</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="ollama">Ollama</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <input type="text" placeholder="${escHtml(t("settings.providerModel"))}" class="llm-model" />
+        <input type="password" placeholder="${escHtml(t("settings.providerApiKey"))}" class="llm-apikey" />
+      </div>
+      <div class="form-row">
+        <input type="text" placeholder="${escHtml(t("settings.providerBaseUrl"))}" class="llm-baseurl" />
+      </div>
+      <div class="form-actions">
+        <button class="btn-save">${escHtml(t("common.save"))}</button>
+        <button class="btn-cancel">${escHtml(t("common.cancel"))}</button>
+      </div>`;
+    llmList.appendChild(form);
+    (form.querySelector(".llm-name") as HTMLInputElement)?.focus();
+
+    form
+      .querySelector(".btn-cancel")
+      ?.addEventListener("click", () => form.remove());
+    form.querySelector(".btn-save")?.addEventListener("click", async () => {
+      const name = (
+        form.querySelector(".llm-name") as HTMLInputElement
+      ).value.trim();
+      const provider = (form.querySelector(".llm-type") as HTMLSelectElement)
+        .value;
+      const model = (
+        form.querySelector(".llm-model") as HTMLInputElement
+      ).value.trim();
+      const apiKey = (
+        form.querySelector(".llm-apikey") as HTMLInputElement
+      ).value.trim();
+      const baseUrl = (
+        form.querySelector(".llm-baseurl") as HTMLInputElement
+      ).value.trim();
+      if (!name) return;
+      await sessionAPI.updateSettings({
+        llmProviders: {
+          [name]: {
+            provider,
+            model: model || undefined,
+            apiKey: apiKey || undefined,
+            baseUrl: baseUrl || undefined,
+          },
+        },
+      });
+      form.remove();
+      renderSettingsCards();
+    });
+  });
+
+  // "Add Channel" inline form
+  addChannelBtn?.addEventListener("click", () => {
+    if (!notifList) return;
+    notifList.querySelector(".settings-inline-form")?.remove();
+    const form = document.createElement("div");
+    form.className = "settings-inline-form";
+    form.innerHTML = `
+      <div class="form-row">
+        <input type="text" placeholder="${escHtml(t("settings.providerName"))}" class="ch-name" />
+        <select class="ch-platform">
+          <option value="feishu">Feishu</option>
+          <option value="dingtalk">DingTalk</option>
+          <option value="telegram">Telegram</option>
+          <option value="slack">Slack</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <input type="text" placeholder="${escHtml(t("settings.channelWebhookUrl"))}" class="ch-webhook" />
+      </div>
+      <div class="form-row">
+        <input type="text" placeholder="${escHtml(t("settings.channelBotToken"))}" class="ch-token" />
+        <input type="text" placeholder="${escHtml(t("settings.channelChatId"))}" class="ch-chatid" />
+      </div>
+      <div class="form-row">
+        <input type="text" placeholder="${escHtml(t("settings.channelSecret"))}" class="ch-secret" />
+      </div>
+      <div class="form-actions">
+        <button class="btn-save">${escHtml(t("common.save"))}</button>
+        <button class="btn-cancel">${escHtml(t("common.cancel"))}</button>
+      </div>`;
+    notifList.appendChild(form);
+    (form.querySelector(".ch-name") as HTMLInputElement)?.focus();
+
+    form
+      .querySelector(".btn-cancel")
+      ?.addEventListener("click", () => form.remove());
+    form.querySelector(".btn-save")?.addEventListener("click", async () => {
+      const name = (
+        form.querySelector(".ch-name") as HTMLInputElement
+      ).value.trim();
+      const platform = (form.querySelector(".ch-platform") as HTMLSelectElement)
+        .value as "feishu" | "dingtalk" | "telegram" | "slack";
+      const webhookUrl = (
+        form.querySelector(".ch-webhook") as HTMLInputElement
+      ).value.trim();
+      const botToken = (
+        form.querySelector(".ch-token") as HTMLInputElement
+      ).value.trim();
+      const chatId = (
+        form.querySelector(".ch-chatid") as HTMLInputElement
+      ).value.trim();
+      const secret = (
+        form.querySelector(".ch-secret") as HTMLInputElement
+      ).value.trim();
+      if (!name) return;
+      const config: Record<string, string> = {};
+      if (webhookUrl) config.webhookUrl = webhookUrl;
+      if (botToken) config.botToken = botToken;
+      if (chatId) config.chatId = chatId;
+      if (secret) config.secret = secret;
+      await sessionAPI.updateSettings({
+        notificationChannels: {
+          [name]: { platform, enabled: true, config },
+        },
+      });
+      form.remove();
+      renderSettingsCards();
+    });
   });
 }
 

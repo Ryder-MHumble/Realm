@@ -32,12 +32,15 @@ export interface ServerConfig {
   execOptions: { env: NodeJS.ProcessEnv };
   version: string;
 
-  // Bot bridge
+  // Bot bridge (legacy env-based, prefer settings.json for new config)
   botEnabled: boolean;
   botPlatform: string;
   feishuWebhookUrl: string;
   feishuAppId: string;
   feishuAppSecret: string;
+
+  // Settings file (agent providers + notification channels)
+  settingsFile: string;
 }
 
 // ============================================================================
@@ -159,5 +162,12 @@ export function loadConfig(): ServerConfig {
     feishuWebhookUrl: process.env.VIBECRAFT_FEISHU_WEBHOOK_URL ?? "",
     feishuAppId: process.env.VIBECRAFT_FEISHU_APP_ID ?? "",
     feishuAppSecret: process.env.VIBECRAFT_FEISHU_APP_SECRET ?? "",
+
+    settingsFile: resolve(
+      expandHome(
+        process.env.VIBECRAFT_SETTINGS_FILE ??
+          "~/.vibecraft/data/settings.json",
+      ),
+    ),
   };
 }

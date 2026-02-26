@@ -23,6 +23,7 @@ import { TilesManager } from "./managers/TilesManager.js";
 import { GroupsManager } from "./managers/GroupsManager.js";
 import { TokenTracker } from "./managers/TokenTracker.js";
 import { PermissionManager } from "./managers/PermissionManager.js";
+import { SettingsManager } from "./managers/SettingsManager.js";
 
 // Existing managers (untouched)
 import { GitStatusManager } from "./GitStatusManager.js";
@@ -33,6 +34,11 @@ import { AgentRegistry } from "./agents/AgentRegistry.js";
 import { ClaudeCodeAdapter } from "./agents/ClaudeCodeAdapter.js";
 import { NanoClawAdapter } from "./agents/NanoClawAdapter.js";
 import { ZeroClawAdapter } from "./agents/ZeroClawAdapter.js";
+import { OpenClawAdapter } from "./agents/OpenClawAdapter.js";
+import { NotificationManager } from "./bot/NotificationManager.js";
+import { FeishuAdapter } from "./bot/FeishuAdapter.js";
+import { DingTalkAdapter } from "./bot/DingTalkAdapter.js";
+import { TelegramAdapter } from "./bot/TelegramAdapter.js";
 
 // API router
 import { routeRequest, type ServerContext } from "./api/router.js";
@@ -56,8 +62,13 @@ function main() {
   const agentRegistry = new AgentRegistry();
   const claudeCodeAdapter = new ClaudeCodeAdapter({ log });
   agentRegistry.register(claudeCodeAdapter);
-  agentRegistry.register(new NanoClawAdapter({}, log));
-  agentRegistry.register(new ZeroClawAdapter({}, log));
+
+  const nanoAdapter = new NanoClawAdapter(log);
+  const zeroAdapter = new ZeroClawAdapter(log);
+  const openAdapter = new OpenClawAdapter(log);
+  agentRegistry.register(nanoAdapter);
+  agentRegistry.register(zeroAdapter);
+  agentRegistry.register(openAdapter);
 
   // ---- Create existing managers ----
   const gitStatusManager = new GitStatusManager();
@@ -82,6 +93,56 @@ function main() {
     agentRegistry,
   });
 
+  // ---- Create settings manager ----
+  const settingsManager = new SettingsManager(config.settingsFile);
+
+  // Inject settings provider into non-Claude adapters for LLM config resolution
+  const settingsProvider = {
+    getLLMProvider: (name: string) => settingsManager.getLLMProvider(name),
+  };
+  nanoAdapter.setSettingsProvider(settingsProvider);
+  zeroAdapter.setSettingsProvider(settingsProvider);
+  openAdapter.setSettingsProvider(settingsProvider);
+
+  // ---- Create notification manager (bridges created on start) ----
+  const logN = (msg: string) => log(`[Notification] ${msg}`);
+  const notificationManager = new NotificationManager(
+    () => settingsManager.getSettings(),
+    (channel) => {
+      switch (channel.platform) {
+        case "feishu":
+          return new FeishuAdapter(
+            {
+              webhookUrl: channel.config.webhookUrl || "",
+              appId: channel.config.appId,
+              appSecret: channel.config.appSecret,
+            },
+            logN,
+          );
+        case "dingtalk":
+          return new DingTalkAdapter(
+            {
+              webhookUrl: channel.config.webhookUrl || "",
+              secret: channel.config.secret,
+            },
+            logN,
+          );
+        case "telegram":
+          return new TelegramAdapter(
+            {
+              botToken: channel.config.botToken || "",
+              chatId: channel.config.chatId || "",
+            },
+            logN,
+          );
+        default:
+          logN(`Unknown notification platform: ${channel.platform}`);
+          return null;
+      }
+    },
+    logN,
+  );
+
   // ---- Wire broadcast callbacks ----
   const broadcast = wsManager.broadcast.bind(wsManager);
   sessionManager.setBroadcast(broadcast);
@@ -90,6 +151,7 @@ function main() {
   groupsManager.setBroadcast(broadcast);
   tokenTracker.setBroadcast(broadcast);
   permissionManager.setBroadcast(broadcast);
+  settingsManager.setBroadcast(broadcast);
 
   // ---- Wire cross-manager callbacks ----
 
@@ -107,8 +169,23 @@ function main() {
     permissionManager.clearSession(id),
   );
 
-  // Events → Sessions
-  eventProcessor.setEventHandler((event) => sessionManager.handleEvent(event));
+  // Events → Sessions + Notifications
+  eventProcessor.setEventHandler((event) => {
+    sessionManager.handleEvent(event);
+
+    // Send notifications on stop events
+    if (event.type === "stop" && notificationManager.hasActiveChannels()) {
+      const session = sessionManager.getSession(event.sessionId);
+      if (session) {
+        const stopEvent = event as import("../shared/types.js").StopEvent;
+        notificationManager.notifySession(session, {
+          sessionName: session.name,
+          status: "completed",
+          response: stopEvent.response,
+        });
+      }
+    }
+  });
 
   // WebSocket → History + Permissions
   wsManager.setHistoryProvider((limit) =>
@@ -142,6 +219,19 @@ function main() {
   sessionManager.loadSessions();
   tilesManager.load();
   groupsManager.load();
+  settingsManager.load();
+
+  // ---- Start notification channels ----
+  notificationManager
+    .start()
+    .catch((e) => log(`Notification start error: ${e}`));
+
+  // Reinitialize notifications when settings change
+  settingsManager.onChange(() => {
+    notificationManager
+      .reinitialize()
+      .catch((e) => log(`Notification reinit error: ${e}`));
+  });
 
   // ---- Start git status tracking ----
   gitStatusManager.setUpdateHandler(({ sessionId, status }) => {
@@ -170,6 +260,8 @@ function main() {
     wsManager,
     projectsManager,
     agentRegistry,
+    settingsManager,
+    notificationManager,
   };
 
   // ---- Create HTTP server ----

@@ -182,7 +182,8 @@ export type ServerMessage =
     }
   | { type: "permission_resolved"; payload: { sessionId: string } }
   | { type: "text_tiles"; payload: TextTile[] }
-  | { type: "zone_groups"; payload: ZoneGroup[] };
+  | { type: "zone_groups"; payload: ZoneGroup[] }
+  | { type: "settings_update"; payload: AgentProviderSettingsRedacted };
 
 /** Client -> Server messages */
 export type ClientMessage =
@@ -444,6 +445,12 @@ export interface ManagedSession {
   agentConfig?: Record<string, unknown>;
   /** Capabilities reported by the agent */
   capabilities?: string[];
+  /** Launch mode used to create this session */
+  launchMode?: LaunchModeConfig;
+  /** LLM provider key used by this session */
+  llmProvider?: string;
+  /** Notification channel keys enabled for this session */
+  notificationChannels?: string[];
 }
 
 /** Git repository status */
@@ -514,6 +521,12 @@ export interface CreateSessionRequest {
   description?: string;
   /** Agent-specific config (container settings, binary path, etc.) */
   agentConfig?: Record<string, unknown>;
+  /** Launch mode configuration (non-claude_code agents) */
+  launchMode?: LaunchModeConfig;
+  /** LLM provider key (references AgentProviderSettings.llmProviders) */
+  llmProvider?: string;
+  /** Notification channel keys (references AgentProviderSettings.notificationChannels) */
+  notificationChannels?: string[];
 }
 
 /** Request to update a session */
@@ -646,6 +659,99 @@ export interface UpdateZoneGroupRequest {
   removeMembers?: string[];
   /** New color */
   color?: string;
+}
+
+// ============================================================================
+// Agent Provider Configuration (Settings)
+// ============================================================================
+
+/** LLM provider configuration (reusable across agent instances) */
+export interface LLMProviderConfig {
+  /** Provider name: "anthropic", "openai", "deepseek", "ollama", "custom" */
+  provider: string;
+  /** API key (stored server-side only, never sent to client) */
+  apiKey?: string;
+  /** Model name (e.g., "claude-sonnet-4-20250514", "gpt-4o", "deepseek-chat") */
+  model?: string;
+  /** Custom API base URL (for custom/self-hosted providers) */
+  baseUrl?: string;
+  /** Max tokens per request */
+  maxTokens?: number;
+}
+
+/** Redacted LLM config sent to client (API key masked) */
+export interface LLMProviderConfigRedacted {
+  provider: string;
+  model?: string;
+  baseUrl?: string;
+  maxTokens?: number;
+  /** True if an API key is configured (key itself not sent) */
+  hasApiKey: boolean;
+}
+
+/** Notification channel configuration */
+export interface NotificationChannelConfig {
+  /** Channel type */
+  platform: "feishu" | "dingtalk" | "telegram" | "slack";
+  /** Is this channel enabled? */
+  enabled: boolean;
+  /** Platform-specific config (webhookUrl, botToken, chatId, secret, appId, appSecret) */
+  config: Record<string, string>;
+}
+
+/** Complete agent provider settings (persisted server-side) */
+export interface AgentProviderSettings {
+  /** Named LLM provider configurations */
+  llmProviders: Record<string, LLMProviderConfig>;
+  /** Default provider name for new agents */
+  defaultProvider?: string;
+  /** Named notification channel configurations */
+  notificationChannels: Record<string, NotificationChannelConfig>;
+}
+
+/** Redacted settings sent to client */
+export interface AgentProviderSettingsRedacted {
+  llmProviders: Record<string, LLMProviderConfigRedacted>;
+  defaultProvider?: string;
+  notificationChannels: Record<string, NotificationChannelConfig>;
+}
+
+// ============================================================================
+// Agent Launch Mode
+// ============================================================================
+
+/** How an agent instance is launched */
+export type LaunchMode = "local" | "docker" | "gateway";
+
+/** Launch mode configuration */
+export interface LaunchModeConfig {
+  mode: LaunchMode;
+  /** Local mode: path to binary or project directory */
+  binaryPath?: string;
+  projectDir?: string;
+  /** Docker mode: image, volumes, env */
+  dockerImage?: string;
+  dockerVolumes?: string[];
+  dockerEnv?: Record<string, string>;
+  useAppleContainer?: boolean;
+  /** Gateway mode: remote URL and auth */
+  gatewayUrl?: string;
+  gatewayToken?: string;
+}
+
+// ============================================================================
+// Settings API Types
+// ============================================================================
+
+export interface GetSettingsResponse {
+  ok: boolean;
+  settings: AgentProviderSettingsRedacted;
+}
+
+export interface UpdateSettingsRequest {
+  llmProviders?: Record<string, LLMProviderConfig>;
+  defaultProvider?: string;
+  notificationChannels?: Record<string, NotificationChannelConfig>;
 }
 
 // ============================================================================

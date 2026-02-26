@@ -1,13 +1,13 @@
 /**
- * NanoClawAdapter — Agent adapter for NanoClaw instances.
+ * OpenClawAdapter — Agent adapter for OpenClaw instances.
  *
- * NanoClaw is a lightweight (~500 lines) TypeScript AI agent that runs
- * in containers (Docker/Apple Container) using Anthropic's Agent SDK.
+ * OpenClaw is an open-source autonomous AI agent (Python-based).
+ * Uses messaging platforms as UI, supports multi-step task execution.
  *
  * Integration:
- * - Local: npx tsx src/index.ts (inside project dir)
- * - Docker: docker run / container run
- * - Gateway: POST gatewayUrl/sessions + event polling
+ * - Local: python -m openclaw (inside project dir)
+ * - Docker: docker run with OpenClaw image
+ * - Gateway: remote OpenClaw instance via HTTP API
  */
 
 import { spawn } from "child_process";
@@ -17,25 +17,25 @@ import type {
 } from "../../shared/types.js";
 import { BaseClawAdapter, type ProcessHandle } from "./BaseClawAdapter.js";
 
-export class NanoClawAdapter extends BaseClawAdapter {
-  readonly agentType = "nanoclaw" as const;
+export class OpenClawAdapter extends BaseClawAdapter {
+  readonly agentType = "openclaw" as const;
 
   constructor(logFn?: (...args: unknown[]) => void) {
     super(logFn);
   }
 
   protected getLabel(): string {
-    return "NanoClaw";
+    return "OpenClaw";
   }
 
   getCapabilities(): string[] {
     return [
       "tool_use",
-      "container_isolation",
-      "agent_swarms",
+      "multi_provider",
       "messaging",
-      "scheduled_tasks",
-      "skills",
+      "autonomous_tasks",
+      "web_browsing",
+      "code_execution",
     ];
   }
 
@@ -47,7 +47,7 @@ export class NanoClawAdapter extends BaseClawAdapter {
   ): Promise<ProcessHandle> {
     const projectDir = launchMode.binaryPath || launchMode.projectDir || config.cwd || process.cwd();
 
-    const child = spawn("npx", ["tsx", "src/index.ts"], {
+    const child = spawn("python", ["-m", "openclaw"], {
       cwd: projectDir,
       env: { ...process.env, ...env },
       stdio: ["pipe", "pipe", "pipe"],
@@ -68,20 +68,16 @@ export class NanoClawAdapter extends BaseClawAdapter {
     launchMode: LaunchModeConfig,
     env: Record<string, string>,
   ): Promise<ProcessHandle> {
-    const image = launchMode.dockerImage || "nanoclaw:latest";
-    const containerName = `nanoclaw-${id.slice(0, 8)}`;
+    const image = launchMode.dockerImage || "openclaw:latest";
+    const containerName = `openclaw-${id.slice(0, 8)}`;
 
     const cmd = launchMode.useAppleContainer ? "container" : "docker";
-    const args = [
-      "run", "--rm", "--name", containerName,
-    ];
+    const args = ["run", "--rm", "--name", containerName];
 
-    // Add env vars
     for (const [k, v] of Object.entries(env)) {
       args.push("-e", `${k}=${v}`);
     }
 
-    // Add volume mounts
     if (launchMode.dockerVolumes) {
       for (const vol of launchMode.dockerVolumes) {
         args.push("-v", vol);
@@ -101,7 +97,6 @@ export class NanoClawAdapter extends BaseClawAdapter {
       process: child,
       containerId: containerName,
       kill: () => {
-        // Try graceful stop, then force kill
         try {
           spawn(cmd, ["stop", containerName], { stdio: "ignore" });
         } catch {
@@ -119,7 +114,6 @@ export class NanoClawAdapter extends BaseClawAdapter {
     const gatewayUrl = launchMode.gatewayUrl;
     if (!gatewayUrl) throw new Error("Gateway URL required for gateway mode");
 
-    // Create session on remote gateway
     const resp = await fetch(`${gatewayUrl}/sessions`, {
       method: "POST",
       headers: {
@@ -127,7 +121,7 @@ export class NanoClawAdapter extends BaseClawAdapter {
         ...(launchMode.gatewayToken ? { Authorization: `Bearer ${launchMode.gatewayToken}` } : {}),
       },
       body: JSON.stringify({
-        agentType: "nanoclaw",
+        agentType: "openclaw",
         name: config.name,
         config: config.agentConfig,
       }),
@@ -145,7 +139,6 @@ export class NanoClawAdapter extends BaseClawAdapter {
       gatewayEndpoint: endpoint,
       gatewayToken: launchMode.gatewayToken,
       kill: () => {
-        // Fire-and-forget DELETE to destroy remote session
         fetch(endpoint, {
           method: "DELETE",
           headers: launchMode.gatewayToken ? { Authorization: `Bearer ${launchMode.gatewayToken}` } : {},

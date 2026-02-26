@@ -240,7 +240,7 @@
         </div>
 
         <div class="modal-field">
-          <label for="session-agent-type">Agent Type</label>
+          <label for="session-agent-type" data-i18n="newZone.agentType">Agent Type</label>
           <select id="session-agent-type" class="modal-select">
             <option value="claude_code" selected>Claude Code</option>
             <option value="nanoclaw">NanoClaw</option>
@@ -267,6 +267,67 @@
           </div>
         </div>
 
+        <!-- Generic Agent Options (non-Claude Code) -->
+        <div class="modal-field" id="generic-agent-options" style="display: none;">
+          <label data-i18n="newZone.launchMode">Launch Mode</label>
+          <div class="modal-radio-group">
+            <label class="modal-radio">
+              <input type="radio" name="launch-mode" value="local" checked />
+              <span data-i18n="newZone.localProcess">Local Process</span>
+            </label>
+            <label class="modal-radio">
+              <input type="radio" name="launch-mode" value="docker" />
+              <span data-i18n="newZone.docker">Docker / Container</span>
+            </label>
+            <label class="modal-radio">
+              <input type="radio" name="launch-mode" value="gateway" />
+              <span data-i18n="newZone.gateway">Remote Gateway</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Launch mode: Local -->
+        <div class="modal-field" id="launch-local-options" style="display: none;">
+          <label data-i18n="newZone.binaryPath">Binary / Project Path</label>
+          <input type="text" id="session-binary-path" placeholder="/usr/local/bin/openclaw" />
+        </div>
+
+        <!-- Launch mode: Docker -->
+        <div class="modal-field" id="launch-docker-options" style="display: none;">
+          <label data-i18n="newZone.dockerImage">Docker Image</label>
+          <input type="text" id="session-docker-image" placeholder="openclaw:latest" />
+          <div class="settings-checkbox-row" style="margin-top: 6px;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="session-apple-container" />
+              <span data-i18n="newZone.appleContainer">Use Apple Container</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Launch mode: Gateway -->
+        <div class="modal-field" id="launch-gateway-options" style="display: none;">
+          <label data-i18n="newZone.gatewayUrl">Gateway URL</label>
+          <input type="text" id="session-gateway-url" placeholder="https://agent-gateway.example.com" />
+          <label data-i18n="newZone.gatewayToken" style="margin-top: 8px; display: block;">Auth Token</label>
+          <input type="password" id="session-gateway-token" placeholder="Bearer token..." />
+        </div>
+
+        <!-- LLM Provider selector (populated from settings) -->
+        <div class="modal-field" id="session-llm-options" style="display: none;">
+          <label data-i18n="newZone.llmProvider">LLM Provider</label>
+          <select id="session-llm-provider" class="modal-select">
+            <option value="" data-i18n="newZone.useDefault">Use Default</option>
+          </select>
+        </div>
+
+        <!-- Notification channel selector -->
+        <div class="modal-field" id="session-notification-options" style="display: none;">
+          <label data-i18n="newZone.notifications">Notifications</label>
+          <div id="session-notification-channels" class="modal-checkboxes">
+            <!-- Dynamically populated from settings -->
+          </div>
+        </div>
+
         <div class="modal-actions">
           <button type="button" class="modal-btn modal-btn-cancel" id="modal-cancel">✕ <span data-i18n="common.cancel">Cancel</span></button>
           <button type="button" class="modal-btn modal-btn-create" id="modal-create">+ <span data-i18n="common.create">Create</span></button>
@@ -281,74 +342,115 @@
           <h3 data-i18n="settings.title">Settings</h3>
         </div>
 
-        <div class="modal-field">
-          <label data-i18n="settings.language">Language</label>
-          <div class="settings-language-row">
-            <button type="button" class="lang-btn" data-lang="en">English</button>
-            <button type="button" class="lang-btn" data-lang="zh">中文</button>
+        <!-- Tab Bar -->
+        <div class="settings-tabs">
+          <button type="button" class="settings-tab-btn active" data-tab="general" data-i18n="settings.tabGeneral">General</button>
+          <button type="button" class="settings-tab-btn" data-tab="world" data-i18n="settings.tabWorld">World</button>
+          <button type="button" class="settings-tab-btn" data-tab="claw" data-i18n="settings.tabClaw">Claw</button>
+          <button type="button" class="settings-tab-btn" data-tab="notifications" data-i18n="settings.tabNotifications">Notifications</button>
+          <button type="button" class="settings-tab-btn" data-tab="shortcuts" data-i18n="settings.tabShortcuts">Shortcuts</button>
+        </div>
+
+        <!-- Tab: General -->
+        <div class="settings-tab-content active" data-tab="general">
+          <div class="modal-field">
+            <label data-i18n="settings.language">Language</label>
+            <div class="settings-language-row">
+              <button type="button" class="lang-btn" data-lang="en">English</button>
+              <button type="button" class="lang-btn" data-lang="zh">中文</button>
+            </div>
+          </div>
+
+          <div class="modal-field">
+            <label data-i18n="settings.audio">Audio</label>
+            <div class="settings-slider-row">
+              <span class="slider-label" data-i18n="settings.volume">Volume</span>
+              <input type="range" id="settings-volume" class="settings-slider" min="0" max="100" value="70" />
+              <span id="settings-volume-value" class="slider-value">70%</span>
+            </div>
+            <div class="settings-checkbox-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="settings-spatial-audio" checked />
+                <span data-i18n="settings.spatialAudio">Spatial Audio</span>
+              </label>
+              <span class="field-hint-inline" data-i18n="settings.spatialHint">Volume/pan based on zone position</span>
+            </div>
+          </div>
+
+          <div class="modal-field">
+            <label data-i18n="settings.privacy">Privacy</label>
+            <div class="settings-checkbox-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="settings-streaming-mode" />
+                <span data-i18n="settings.streamingMode">Streaming Mode</span>
+              </label>
+              <span class="field-hint-inline" data-i18n="settings.streamingHint">Hide username for privacy</span>
+            </div>
           </div>
         </div>
 
-        <div class="modal-field">
-          <label data-i18n="settings.audio">Audio</label>
-          <div class="settings-slider-row">
-            <span class="slider-label" data-i18n="settings.volume">Volume</span>
-            <input type="range" id="settings-volume" class="settings-slider" min="0" max="100" value="70" />
-            <span id="settings-volume-value" class="slider-value">70%</span>
+        <!-- Tab: World -->
+        <div class="settings-tab-content" data-tab="world">
+          <div class="modal-field">
+            <label data-i18n="settings.world">World</label>
+            <div class="settings-slider-row">
+              <span class="slider-label" data-i18n="settings.gridSize">Grid Size</span>
+              <input type="range" id="settings-grid-size" class="settings-slider" min="5" max="80" value="20" />
+              <span id="settings-grid-size-value" class="slider-value">20</span>
+            </div>
+            <div class="field-hint" data-i18n="settings.gridHint">Number of hex rings from center. Larger = more space, may impact performance.</div>
           </div>
-          <div class="settings-checkbox-row">
-            <label class="checkbox-label">
-              <input type="checkbox" id="settings-spatial-audio" checked />
-              <span data-i18n="settings.spatialAudio">Spatial Audio</span>
-            </label>
-            <span class="field-hint-inline" data-i18n="settings.spatialHint">Volume/pan based on zone position</span>
+
+          <div class="modal-field">
+            <label data-i18n="settings.agentConnection">Agent Connection</label>
+            <div class="settings-port-row">
+              <span class="port-label">localhost:</span>
+              <input type="number" id="settings-port" value="4003" min="1" max="65535" />
+              <span id="settings-port-status" class="port-status"></span>
+            </div>
+            <div class="field-hint" data-i18n="settings.portHint">Port where the Vibecraft agent is running. Changes require refresh.</div>
+          </div>
+
+          <div class="modal-field">
+            <label data-i18n="settings.sessions">Sessions</label>
+            <div class="settings-actions">
+              <button type="button" class="settings-action-btn" id="settings-refresh-sessions">🔄 <span data-i18n="settings.refreshSessions">Refresh Sessions</span></button>
+            </div>
           </div>
         </div>
 
-        <div class="modal-field">
-          <label data-i18n="settings.privacy">Privacy</label>
-          <div class="settings-checkbox-row">
-            <label class="checkbox-label">
-              <input type="checkbox" id="settings-streaming-mode" />
-              <span data-i18n="settings.streamingMode">Streaming Mode</span>
-            </label>
-            <span class="field-hint-inline" data-i18n="settings.streamingHint">Hide username for privacy</span>
+        <!-- Tab: Claw -->
+        <div class="settings-tab-content" data-tab="claw">
+          <div class="settings-tab-hint" data-i18n="settings.clawHint">Configure LLM providers for Claw agents (OpenClaw, NanoClaw, ZeroClaw). Claude Code uses its own API key and does not need this.</div>
+          <div class="modal-field">
+            <label data-i18n="settings.llmProviders">LLM Providers</label>
+            <div id="settings-llm-list" class="settings-card-list">
+              <!-- Dynamically populated -->
+            </div>
+            <button type="button" class="settings-action-btn" id="settings-add-llm">+ <span data-i18n="settings.addProvider">Add Provider</span></button>
           </div>
         </div>
 
-        <div class="modal-field">
-          <label data-i18n="settings.world">World</label>
-          <div class="settings-slider-row">
-            <span class="slider-label" data-i18n="settings.gridSize">Grid Size</span>
-            <input type="range" id="settings-grid-size" class="settings-slider" min="5" max="80" value="20" />
-            <span id="settings-grid-size-value" class="slider-value">20</span>
-          </div>
-          <div class="field-hint" data-i18n="settings.gridHint">Number of hex rings from center. Larger = more space, may impact performance.</div>
-        </div>
-
-        <div class="modal-field">
-          <label data-i18n="settings.agentConnection">Agent Connection</label>
-          <div class="settings-port-row">
-            <span class="port-label">localhost:</span>
-            <input type="number" id="settings-port" value="4003" min="1" max="65535" />
-            <span id="settings-port-status" class="port-status"></span>
-          </div>
-          <div class="field-hint" data-i18n="settings.portHint">Port where the Vibecraft agent is running. Changes require refresh.</div>
-        </div>
-
-        <div class="modal-field">
-          <label data-i18n="settings.sessions">Sessions</label>
-          <div class="settings-actions">
-            <button type="button" class="settings-action-btn" id="settings-refresh-sessions">🔄 <span data-i18n="settings.refreshSessions">Refresh Sessions</span></button>
+        <!-- Tab: Notifications -->
+        <div class="settings-tab-content" data-tab="notifications">
+          <div class="modal-field">
+            <label data-i18n="settings.notificationChannels">Notification Channels</label>
+            <div id="settings-notification-list" class="settings-card-list">
+              <!-- Dynamically populated -->
+            </div>
+            <button type="button" class="settings-action-btn" id="settings-add-channel">+ <span data-i18n="settings.addChannel">Add Channel</span></button>
           </div>
         </div>
 
-        <div class="modal-field">
-          <label data-i18n="settings.keyboardShortcuts">Keyboard Shortcuts</label>
-          <div id="keybind-settings" class="keybind-settings">
-            <!-- Dynamically populated by KeybindSettings.ts -->
+        <!-- Tab: Shortcuts -->
+        <div class="settings-tab-content" data-tab="shortcuts">
+          <div class="modal-field">
+            <label data-i18n="settings.keyboardShortcuts">Keyboard Shortcuts</label>
+            <div id="keybind-settings" class="keybind-settings">
+              <!-- Dynamically populated by KeybindSettings.ts -->
+            </div>
+            <div class="field-hint" data-i18n="settings.keybindHint">Click a keybind to change it. Press the new key combination, or Escape to cancel.</div>
           </div>
-          <div class="field-hint" data-i18n="settings.keybindHint">Click a keybind to change it. Press the new key combination, or Escape to cancel.</div>
         </div>
 
         <div class="modal-actions">

@@ -4,136 +4,28 @@
  * ZeroClaw is an ultra-lightweight Rust-based AI agent runtime (~3.4MB binary)
  * with 13 pluggable traits for providers, channels, memory, tools, etc.
  *
- * Integration strategy:
- * - Process management: run ZeroClaw binary directly
- * - Event capture: via observability trait or stdout parsing
- * - Task dispatch: via channel interface or API endpoint
+ * Integration:
+ * - Local: run ZeroClaw binary directly
+ * - Docker: docker run with the Rust binary
+ * - Gateway: remote ZeroClaw instance via HTTP API
  */
 
-import { ChildProcess, spawn } from "child_process";
-import { randomUUID } from "crypto";
+import { spawn } from "child_process";
 import type {
-  ClaudeEvent,
   CreateSessionRequest,
-  ManagedSession,
-  SessionStatus,
-  SessionStartEvent,
+  LaunchModeConfig,
 } from "../../shared/types.js";
-import type { AgentAdapter } from "./AgentAdapter.js";
+import { BaseClawAdapter, type ProcessHandle } from "./BaseClawAdapter.js";
 
-export interface ZeroClawConfig {
-  /** Path to ZeroClaw binary */
-  binaryPath?: string;
-  /** Config file path for ZeroClaw */
-  configPath?: string;
-  /** Provider to use (e.g., "claude", "deepseek", "openai") */
-  provider?: string;
-  /** Channel to use for communication */
-  channel?: string;
-}
-
-export class ZeroClawAdapter implements AgentAdapter {
+export class ZeroClawAdapter extends BaseClawAdapter {
   readonly agentType = "zeroclaw" as const;
-  private eventHandlers: Array<(event: ClaudeEvent) => void> = [];
-  private processes: Map<string, ChildProcess> = new Map();
-  private log: (...args: unknown[]) => void;
 
-  constructor(
-    private config: ZeroClawConfig = {},
-    logFn?: (...args: unknown[]) => void,
-  ) {
-    this.log = logFn || console.log;
+  constructor(logFn?: (...args: unknown[]) => void) {
+    super(logFn);
   }
 
-  async createSession(config: CreateSessionRequest): Promise<ManagedSession> {
-    const id = randomUUID();
-    const name = config.name || `ZeroClaw ${id.slice(0, 4)}`;
-    const agentConfig = (config.agentConfig || {}) as ZeroClawConfig;
-    const cwd = config.cwd || process.cwd();
-
-    // TODO: Implement actual ZeroClaw binary spawning
-    const processId = `zeroclaw-${id.slice(0, 8)}`;
-
-    const session: ManagedSession = {
-      id,
-      name,
-      agentType: "zeroclaw",
-      tmuxSession: processId, // Process identifier
-      status: "idle",
-      createdAt: Date.now(),
-      lastActivity: Date.now(),
-      cwd,
-      agentConfig: {
-        ...this.config,
-        ...agentConfig,
-      },
-      capabilities: this.getCapabilities(),
-    };
-
-    this.log(`Created ZeroClaw session: ${name} (${id.slice(0, 8)})`);
-
-    // Emit session start event
-    this.emitEvent({
-      id: randomUUID(),
-      timestamp: Date.now(),
-      type: "session_start",
-      sessionId: id,
-      cwd,
-      source: "startup",
-    } as SessionStartEvent);
-
-    return session;
-  }
-
-  async destroySession(sessionId: string): Promise<boolean> {
-    const process = this.processes.get(sessionId);
-    if (process) {
-      process.kill("SIGTERM");
-      this.processes.delete(sessionId);
-    }
-    this.log(`Destroyed ZeroClaw session: ${sessionId.slice(0, 8)}`);
-    return true;
-  }
-
-  async restartSession(session: ManagedSession): Promise<boolean> {
-    await this.destroySession(session.id);
-    // TODO: Respawn the ZeroClaw binary
-    this.log(`Restarted ZeroClaw session: ${session.name}`);
-    return true;
-  }
-
-  async sendPrompt(
-    sessionId: string,
-    prompt: string,
-  ): Promise<{ ok: boolean; error?: string }> {
-    // TODO: Implement actual prompt delivery to ZeroClaw
-    // Options:
-    // 1. Send via ZeroClaw's channel interface
-    // 2. Write to ZeroClaw's stdin
-    // 3. Use ZeroClaw's HTTP/WebSocket API
-    this.log(
-      `[ZeroClaw] Sending prompt to ${sessionId.slice(0, 8)}: ${prompt.slice(0, 50)}...`,
-    );
-
-    // Emit a user prompt event
-    this.emitEvent({
-      id: randomUUID(),
-      timestamp: Date.now(),
-      type: "user_prompt_submit",
-      sessionId,
-      cwd: "",
-      prompt,
-    });
-
-    return { ok: true };
-  }
-
-  async checkHealth(session: ManagedSession): Promise<SessionStatus> {
-    const process = this.processes.get(session.id);
-    if (!process || process.killed) {
-      return "offline";
-    }
-    return session.status;
+  protected getLabel(): string {
+    return "ZeroClaw";
   }
 
   getCapabilities(): string[] {
@@ -148,21 +40,117 @@ export class ZeroClawAdapter implements AgentAdapter {
     ];
   }
 
-  onEvent(handler: (event: ClaudeEvent) => void): void {
-    this.eventHandlers.push(handler);
+  protected async launchLocal(
+    id: string,
+    config: CreateSessionRequest,
+    launchMode: LaunchModeConfig,
+    env: Record<string, string>,
+  ): Promise<ProcessHandle> {
+    const binaryPath = launchMode.binaryPath || "zeroclaw";
+    const cwd = config.cwd || process.cwd();
+
+    const args: string[] = [];
+    // Pass provider from LLM env if available
+    if (env.LLM_PROVIDER) args.push("--provider", env.LLM_PROVIDER);
+    if (env.LLM_MODEL) args.push("--model", env.LLM_MODEL);
+
+    const child = spawn(binaryPath, args, {
+      cwd,
+      env: { ...process.env, ...env },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    this.attachEventCapture(id, child);
+
+    return {
+      kind: "process",
+      process: child,
+      kill: () => child.kill("SIGTERM"),
+    };
   }
 
-  private emitEvent(event: ClaudeEvent): void {
-    for (const handler of this.eventHandlers) {
-      handler(event);
+  protected async launchDocker(
+    id: string,
+    config: CreateSessionRequest,
+    launchMode: LaunchModeConfig,
+    env: Record<string, string>,
+  ): Promise<ProcessHandle> {
+    const image = launchMode.dockerImage || "zeroclaw:latest";
+    const containerName = `zeroclaw-${id.slice(0, 8)}`;
+
+    const cmd = launchMode.useAppleContainer ? "container" : "docker";
+    const args = ["run", "--rm", "--name", containerName];
+
+    for (const [k, v] of Object.entries(env)) {
+      args.push("-e", `${k}=${v}`);
     }
+
+    if (launchMode.dockerVolumes) {
+      for (const vol of launchMode.dockerVolumes) {
+        args.push("-v", vol);
+      }
+    }
+
+    args.push(image);
+
+    const child = spawn(cmd, args, {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    this.attachEventCapture(id, child);
+
+    return {
+      kind: "docker",
+      process: child,
+      containerId: containerName,
+      kill: () => {
+        try {
+          spawn(cmd, ["stop", containerName], { stdio: "ignore" });
+        } catch {
+          child.kill("SIGTERM");
+        }
+      },
+    };
   }
 
-  async dispose(): Promise<void> {
-    for (const [id, proc] of this.processes) {
-      proc.kill("SIGTERM");
+  protected async launchGateway(
+    id: string,
+    config: CreateSessionRequest,
+    launchMode: LaunchModeConfig,
+  ): Promise<ProcessHandle> {
+    const gatewayUrl = launchMode.gatewayUrl;
+    if (!gatewayUrl) throw new Error("Gateway URL required for gateway mode");
+
+    const resp = await fetch(`${gatewayUrl}/sessions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(launchMode.gatewayToken ? { Authorization: `Bearer ${launchMode.gatewayToken}` } : {}),
+      },
+      body: JSON.stringify({
+        agentType: "zeroclaw",
+        name: config.name,
+        config: config.agentConfig,
+      }),
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Gateway returned ${resp.status}: ${await resp.text()}`);
     }
-    this.processes.clear();
-    this.eventHandlers = [];
+
+    const data = await resp.json() as { sessionId?: string; endpoint?: string };
+    const endpoint = data.endpoint || `${gatewayUrl}/sessions/${data.sessionId || id}`;
+
+    return {
+      kind: "gateway",
+      gatewayEndpoint: endpoint,
+      gatewayToken: launchMode.gatewayToken,
+      kill: () => {
+        fetch(endpoint, {
+          method: "DELETE",
+          headers: launchMode.gatewayToken ? { Authorization: `Bearer ${launchMode.gatewayToken}` } : {},
+        }).catch(() => {});
+      },
+    };
   }
 }

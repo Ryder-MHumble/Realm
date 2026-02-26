@@ -13,7 +13,11 @@ import type {
   SessionPromptRequest,
 } from "../../shared/types.js";
 import type { ServerContext } from "./router.js";
-import { collectRequestBody, jsonResponse, errorResponse } from "./httpUtils.js";
+import {
+  collectRequestBody,
+  jsonResponse,
+  errorResponse,
+} from "./httpUtils.js";
 import { log } from "../logger.js";
 import { validateTmuxSession, getExecOptions } from "../tmuxUtils.js";
 
@@ -26,7 +30,10 @@ export function handleSessionRoutes(
 
   // GET /sessions - List all sessions
   if (req.method === "GET" && req.url === "/sessions") {
-    jsonResponse(res, 200, { ok: true, sessions: sessionManager.getSessions() });
+    jsonResponse(res, 200, {
+      ok: true,
+      sessions: sessionManager.getSessions(),
+    });
     return true;
   }
 
@@ -34,7 +41,10 @@ export function handleSessionRoutes(
   if (req.method === "POST" && req.url === "/sessions/refresh") {
     log("Manual session refresh requested");
     sessionManager.checkSessionHealth();
-    jsonResponse(res, 200, { ok: true, sessions: sessionManager.getSessions() });
+    jsonResponse(res, 200, {
+      ok: true,
+      sessions: sessionManager.getSessions(),
+    });
     return true;
   }
 
@@ -207,6 +217,81 @@ export function handleSessionRoutes(
           }
 
           jsonResponse(res, 200, { ok: true, session: result.session });
+        } catch {
+          errorResponse(res, 400, "Invalid JSON");
+        }
+      })
+      .catch(() => {
+        jsonResponse(res, 413, { error: "Request body too large" });
+      });
+    return true;
+  }
+
+  // POST /sessions/:id/question-response
+  // Handles AskUserQuestion answers by navigating the interactive selector
+  if (req.method === "POST" && action === "question-response") {
+    const session = sessionManager.getSession(sessionId);
+    if (!session) {
+      errorResponse(res, 404, "Session not found");
+      return true;
+    }
+
+    try {
+      validateTmuxSession(session.tmuxSession);
+    } catch {
+      errorResponse(res, 400, "Invalid tmux session name");
+      return true;
+    }
+
+    collectRequestBody(req)
+      .then(async (body) => {
+        try {
+          const data = JSON.parse(body) as {
+            optionIndex?: number;
+            totalOptions?: number;
+            text?: string;
+          };
+
+          const tmux = session.tmuxSession;
+          const opts = getExecOptions();
+
+          if (data.optionIndex !== undefined) {
+            // Predefined option: navigate with Down arrows, then Enter
+            const downs = data.optionIndex;
+            for (let i = 0; i < downs; i++) {
+              execFile("tmux", ["send-keys", "-t", tmux, "Down"], opts);
+              await new Promise((r) => setTimeout(r, 50));
+            }
+            await new Promise((r) => setTimeout(r, 100));
+            execFile("tmux", ["send-keys", "-t", tmux, "Enter"], opts);
+          } else if (
+            data.text !== undefined &&
+            data.totalOptions !== undefined
+          ) {
+            // Custom "Other" text: navigate past all options to "Other", select, type text
+            for (let i = 0; i < data.totalOptions; i++) {
+              execFile("tmux", ["send-keys", "-t", tmux, "Down"], opts);
+              await new Promise((r) => setTimeout(r, 50));
+            }
+            await new Promise((r) => setTimeout(r, 100));
+            execFile("tmux", ["send-keys", "-t", tmux, "Enter"], opts);
+            // Wait for the text input to appear
+            await new Promise((r) => setTimeout(r, 300));
+            // Type the custom text and press Enter
+            execFile("tmux", ["send-keys", "-t", tmux, "-l", data.text], opts);
+            await new Promise((r) => setTimeout(r, 100));
+            execFile("tmux", ["send-keys", "-t", tmux, "Enter"], opts);
+          } else {
+            errorResponse(
+              res,
+              400,
+              "Provide optionIndex or text + totalOptions",
+            );
+            return;
+          }
+
+          session.lastActivity = Date.now();
+          jsonResponse(res, 200, { ok: true });
         } catch {
           errorResponse(res, 400, "Invalid JSON");
         }

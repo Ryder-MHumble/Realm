@@ -49,3 +49,7 @@ hooks/
 - localStorage for user preferences, server files for shared state
 - i18n via `src/i18n/` — use `t('key')` for all user-facing strings
 - Data directory: `~/.vibecraft/data/` (shared between hook and server)
+
+## Terminology
+
+- **Claw**: Refers to open-source AI agent projects like OpenClaw, NanoClaw, ZeroClaw. These are distinct from Claude Code — Claw agents require external LLM provider configuration (API keys, models, base URLs), while Claude Code uses its own built-in API key. The settings UI separates Claw config into its own tab.
