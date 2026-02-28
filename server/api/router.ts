@@ -17,7 +17,6 @@ import type { WebSocketManager } from "../managers/WebSocketManager.js";
 import type { ProjectsManager } from "../ProjectsManager.js";
 import type { AgentRegistry } from "../agents/AgentRegistry.js";
 import type { SettingsManager } from "../managers/SettingsManager.js";
-import type { NotificationManager } from "../bot/NotificationManager.js";
 import type { AutoCompactManager } from "../managers/AutoCompactManager.js";
 import type { AutoContinueManager } from "../managers/AutoContinueManager.js";
 import { isOriginAllowed } from "../config.js";
@@ -46,7 +45,6 @@ export interface ServerContext {
   projectsManager: ProjectsManager;
   agentRegistry: AgentRegistry;
   settingsManager: SettingsManager;
-  notificationManager: NotificationManager | null;
   autoCompactManager: AutoCompactManager | null;
   autoContinueManager: AutoContinueManager | null;
 }

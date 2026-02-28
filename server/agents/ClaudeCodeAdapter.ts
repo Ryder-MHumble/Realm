@@ -96,6 +96,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     const flags = config.flags || {};
     const claudeArgs: string[] = [];
 
+    // Use configured model or default to haiku for cost savings
+    const model = process.env.VIBECRAFT_CLAUDE_MODEL || "claude-haiku-4-5-20251001";
+    claudeArgs.push(`--model=${model}`);
+
     if (flags.continue === true) {
       claudeArgs.push("-c");
     }
@@ -202,7 +206,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           session.tmuxSession,
           "-c",
           cwd,
-          `${buildEnvPrefix()} claude --permission-mode=bypassPermissions --dangerously-skip-permissions`,
+          `${buildEnvPrefix()} claude --model=${process.env.VIBECRAFT_CLAUDE_MODEL || "claude-haiku-4-5-20251001"} --permission-mode=bypassPermissions --dangerously-skip-permissions`,
         ],
         EXEC_OPTIONS,
         (error) => {

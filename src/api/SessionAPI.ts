@@ -76,7 +76,6 @@ export function createSessionAPI(apiUrl: string) {
       agentConfig?: Record<string, unknown>,
       launchMode?: LaunchModeConfig,
       llmProvider?: string,
-      notificationChannels?: string[],
     ): Promise<CreateSessionResponse> {
       try {
         const response = await fetch(`${apiUrl}/sessions`, {
@@ -92,7 +91,6 @@ export function createSessionAPI(apiUrl: string) {
             agentConfig,
             launchMode,
             llmProvider,
-            notificationChannels,
           }),
         });
         return await response.json();
@@ -361,7 +359,7 @@ export function createSessionAPI(apiUrl: string) {
         console.error("Error fetching settings:", e);
         return {
           ok: false,
-          settings: { llmProviders: {}, notificationChannels: {} },
+          settings: { llmProviders: {} },
         };
       }
     },
@@ -383,24 +381,8 @@ export function createSessionAPI(apiUrl: string) {
         console.error("Error updating settings:", e);
         return {
           ok: false,
-          settings: { llmProviders: {}, notificationChannels: {} },
+          settings: { llmProviders: {} },
         };
-      }
-    },
-
-    /**
-     * Send a test notification to a specific channel
-     */
-    async testNotification(channelName: string): Promise<SimpleResponse> {
-      try {
-        const response = await fetch(
-          `${apiUrl}/settings/test-notification/${encodeURIComponent(channelName)}`,
-          { method: "POST" },
-        );
-        return await response.json();
-      } catch (e) {
-        console.error("Error testing notification:", e);
-        return { ok: false, error: "Network error" };
       }
     },
 
@@ -420,21 +402,6 @@ export function createSessionAPI(apiUrl: string) {
       }
     },
 
-    /**
-     * Delete a notification channel
-     */
-    async deleteNotificationChannel(name: string): Promise<SimpleResponse> {
-      try {
-        const response = await fetch(
-          `${apiUrl}/settings/notification/${encodeURIComponent(name)}`,
-          { method: "DELETE" },
-        );
-        return await response.json();
-      } catch (e) {
-        console.error("Error deleting notification channel:", e);
-        return { ok: false, error: "Network error" };
-      }
-    },
   };
 }
 

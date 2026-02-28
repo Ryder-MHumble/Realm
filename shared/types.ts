@@ -449,8 +449,6 @@ export interface ManagedSession {
   launchMode?: LaunchModeConfig;
   /** LLM provider key used by this session */
   llmProvider?: string;
-  /** Notification channel keys enabled for this session */
-  notificationChannels?: string[];
 }
 
 /** Git repository status */
@@ -525,8 +523,6 @@ export interface CreateSessionRequest {
   launchMode?: LaunchModeConfig;
   /** LLM provider key (references AgentProviderSettings.llmProviders) */
   llmProvider?: string;
-  /** Notification channel keys (references AgentProviderSettings.notificationChannels) */
-  notificationChannels?: string[];
 }
 
 /** Request to update a session */
@@ -689,16 +685,6 @@ export interface LLMProviderConfigRedacted {
   hasApiKey: boolean;
 }
 
-/** Notification channel configuration */
-export interface NotificationChannelConfig {
-  /** Channel type */
-  platform: "feishu" | "dingtalk" | "telegram" | "slack";
-  /** Is this channel enabled? */
-  enabled: boolean;
-  /** Platform-specific config (webhookUrl, botToken, chatId, secret, appId, appSecret) */
-  config: Record<string, string>;
-}
-
 /** Auto-compact settings */
 export interface AutoCompactSettings {
   enabled: boolean;
@@ -725,8 +711,6 @@ export interface AgentProviderSettings {
   llmProviders: Record<string, LLMProviderConfig>;
   /** Default provider name for new agents */
   defaultProvider?: string;
-  /** Named notification channel configurations */
-  notificationChannels: Record<string, NotificationChannelConfig>;
   /** Auto-compact configuration */
   autoCompact?: AutoCompactSettings;
   /** Auto-continue configuration */
@@ -737,7 +721,6 @@ export interface AgentProviderSettings {
 export interface AgentProviderSettingsRedacted {
   llmProviders: Record<string, LLMProviderConfigRedacted>;
   defaultProvider?: string;
-  notificationChannels: Record<string, NotificationChannelConfig>;
   autoCompact?: AutoCompactSettings;
   autoContinue?: AutoContinueSettings;
 }
@@ -777,7 +760,6 @@ export interface GetSettingsResponse {
 export interface UpdateSettingsRequest {
   llmProviders?: Record<string, LLMProviderConfig>;
   defaultProvider?: string;
-  notificationChannels?: Record<string, NotificationChannelConfig>;
   autoCompact?: Partial<AutoCompactSettings>;
   autoContinue?: Partial<AutoContinueSettings>;
 }

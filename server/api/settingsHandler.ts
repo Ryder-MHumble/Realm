@@ -2,7 +2,7 @@
  * Settings Handler
  *
  * Handles /settings/* endpoints for agent provider settings.
- * LLM providers and notification channels are managed here.
+ * LLM providers are managed here.
  */
 
 import type { IncomingMessage, ServerResponse } from "http";
@@ -84,54 +84,6 @@ export function handleSettingsRoutes(
       });
     } else {
       errorResponse(res, 404, `LLM provider "${name}" not found`);
-    }
-    return true;
-  }
-
-  // DELETE /settings/notification/:name — remove a channel
-  const channelDeleteMatch = req.url?.match(
-    /^\/settings\/notification\/([^/?]+)/,
-  );
-  if (req.method === "DELETE" && channelDeleteMatch) {
-    const name = decodeURIComponent(channelDeleteMatch[1]);
-    const deleted = settingsManager.deleteNotificationChannel(name);
-    if (deleted) {
-      jsonResponse(res, 200, {
-        ok: true,
-        settings: settingsManager.getRedactedSettings(),
-      });
-    } else {
-      errorResponse(res, 404, `Notification channel "${name}" not found`);
-    }
-    return true;
-  }
-
-  // POST /settings/test-notification/:name — send test message
-  const testMatch = req.url?.match(/^\/settings\/test-notification\/([^/?]+)/);
-  if (req.method === "POST" && testMatch) {
-    const name = decodeURIComponent(testMatch[1]);
-    const channel = settingsManager.getNotificationChannel(name);
-    if (!channel) {
-      errorResponse(res, 404, `Notification channel "${name}" not found`);
-      return true;
-    }
-
-    // NotificationManager handles actual test — delegate via context
-    if (ctx.notificationManager) {
-      ctx.notificationManager
-        .testChannel(name)
-        .then((success) => {
-          if (success) {
-            jsonResponse(res, 200, { ok: true, message: "Test sent" });
-          } else {
-            errorResponse(res, 500, "Test failed — channel not active");
-          }
-        })
-        .catch((err) => {
-          errorResponse(res, 500, `Test failed: ${err}`);
-        });
-    } else {
-      errorResponse(res, 503, "Notification system not initialized");
     }
     return true;
   }

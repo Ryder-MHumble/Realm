@@ -1,7 +1,7 @@
 /**
  * Settings Manager
  *
- * Manages agent provider settings: LLM providers and notification channels.
+ * Manages agent provider settings: LLM providers.
  * Follows the TilesManager pattern: JSON file persistence + WebSocket broadcast.
  * API keys are stored server-side only; clients receive redacted versions.
  */
@@ -15,7 +15,6 @@ import type {
   AutoContinueSettings,
   LLMProviderConfig,
   LLMProviderConfigRedacted,
-  NotificationChannelConfig,
   ServerMessage,
   UpdateSettingsRequest,
 } from "../../shared/types.js";
@@ -24,7 +23,6 @@ import { log, debug } from "../logger.js";
 const EMPTY_SETTINGS: AgentProviderSettings = {
   llmProviders: {},
   defaultProvider: undefined,
-  notificationChannels: {},
 };
 
 export class SettingsManager {
@@ -60,18 +58,12 @@ export class SettingsManager {
       this.settings = {
         llmProviders: data.llmProviders || {},
         defaultProvider: data.defaultProvider,
-        notificationChannels: data.notificationChannels || {},
         autoCompact: data.autoCompact,
         autoContinue: data.autoContinue,
       };
 
       const providerCount = Object.keys(this.settings.llmProviders).length;
-      const channelCount = Object.keys(
-        this.settings.notificationChannels,
-      ).length;
-      log(
-        `Loaded settings: ${providerCount} LLM providers, ${channelCount} notification channels`,
-      );
+      log(`Loaded settings: ${providerCount} LLM providers`);
     } catch (e) {
       console.error("Failed to load settings:", e);
     }
@@ -99,7 +91,6 @@ export class SettingsManager {
     return {
       llmProviders: redactedProviders,
       defaultProvider: this.settings.defaultProvider,
-      notificationChannels: this.settings.notificationChannels,
       autoCompact: this.settings.autoCompact,
       autoContinue: this.settings.autoContinue,
     };
@@ -119,14 +110,6 @@ export class SettingsManager {
 
     if (updates.defaultProvider !== undefined) {
       this.settings.defaultProvider = updates.defaultProvider;
-    }
-
-    if (updates.notificationChannels) {
-      for (const [name, config] of Object.entries(
-        updates.notificationChannels,
-      )) {
-        this.settings.notificationChannels[name] = config;
-      }
     }
 
     if (updates.autoCompact) {
@@ -173,10 +156,6 @@ export class SettingsManager {
       this.settings.defaultProvider = settings.defaultProvider;
     }
 
-    if (settings.notificationChannels !== undefined) {
-      this.settings.notificationChannels = settings.notificationChannels;
-    }
-
     if (settings.autoCompact !== undefined) {
       this.settings.autoCompact = {
         ...(this.settings.autoCompact || {
@@ -218,24 +197,9 @@ export class SettingsManager {
     return true;
   }
 
-  /** Delete a notification channel */
-  deleteNotificationChannel(name: string): boolean {
-    if (!this.settings.notificationChannels[name]) return false;
-    delete this.settings.notificationChannels[name];
-    this.save();
-    this.broadcastSettings();
-    log(`Deleted notification channel: ${name}`);
-    return true;
-  }
-
   /** Get a specific LLM provider config (with real API key, for server-side use) */
   getLLMProvider(name: string): LLMProviderConfig | undefined {
     return this.settings.llmProviders[name];
-  }
-
-  /** Get a specific notification channel config */
-  getNotificationChannel(name: string): NotificationChannelConfig | undefined {
-    return this.settings.notificationChannels[name];
   }
 
   /** Get auto-compact settings */
@@ -246,17 +210,6 @@ export class SettingsManager {
   /** Get auto-continue settings */
   getAutoContinue(): AutoContinueSettings | undefined {
     return this.settings.autoContinue;
-  }
-
-  /** Get all enabled notification channels */
-  getEnabledChannels(): Record<string, NotificationChannelConfig> {
-    const result: Record<string, NotificationChannelConfig> = {};
-    for (const [name, channel] of Object.entries(
-      this.settings.notificationChannels,
-    )) {
-      if (channel.enabled) result[name] = channel;
-    }
-    return result;
   }
 
   /** Save settings to disk */

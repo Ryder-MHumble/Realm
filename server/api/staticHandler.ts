@@ -27,7 +27,7 @@ export function serveStaticFile(
 ): void {
   const distDir = resolve(
     dirname(new URL(import.meta.url).pathname),
-    "../..",
+    "../../..",
   );
 
   let urlPath = req.url?.split("?")[0] ?? "/";

@@ -544,7 +544,6 @@ async function createManagedSession(
   agentConfig?: Record<string, unknown>,
   launchMode?: import("../shared/types").LaunchModeConfig,
   llmProvider?: string,
-  notificationChannels?: string[],
 ): Promise<void> {
   // Pre-store hint position and pending zone ID BEFORE the API call.
   // The server broadcasts sessions via WebSocket before the HTTP response returns,
@@ -569,7 +568,6 @@ async function createManagedSession(
     agentConfig,
     launchMode,
     llmProvider,
-    notificationChannels,
   );
 
   if (!data.ok) {
@@ -822,7 +820,6 @@ function openNewSessionModal(hintPosition?: { x: number; z: number }): void {
     "launch-docker-options",
     "launch-gateway-options",
     "session-llm-options",
-    "session-notification-options",
   ]) {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
@@ -870,9 +867,6 @@ function setupManagedSessions(): void {
   const claudeCodeOptions = document.getElementById("claude-code-options");
   const genericAgentOptions = document.getElementById("generic-agent-options");
   const sessionLlmOptions = document.getElementById("session-llm-options");
-  const sessionNotificationOptions = document.getElementById(
-    "session-notification-options",
-  );
   const launchLocalOptions = document.getElementById("launch-local-options");
   const launchDockerOptions = document.getElementById("launch-docker-options");
   const launchGatewayOptions = document.getElementById(
@@ -917,26 +911,6 @@ function setupManagedSessions(): void {
         }
       }
 
-      // Populate notification channel checkboxes
-      const channelContainer = document.getElementById(
-        "session-notification-channels",
-      );
-      if (channelContainer) {
-        channelContainer.innerHTML = "";
-        for (const [name, channel] of Object.entries(
-          settings.notificationChannels,
-        )) {
-          if (!channel.enabled) continue;
-          const label = document.createElement("label");
-          label.className = "modal-checkbox";
-          label.innerHTML = `<input type="checkbox" value="${name}" checked /><span class="checkbox-label">${name} (${channel.platform})</span>`;
-          channelContainer.appendChild(label);
-        }
-        if (channelContainer.children.length === 0) {
-          channelContainer.innerHTML =
-            '<span class="field-hint" style="margin:0;">No channels configured</span>';
-        }
-      }
     } catch {
       // Settings fetch failed — silently skip
     }
@@ -951,9 +925,6 @@ function setupManagedSessions(): void {
         genericAgentOptions.style.display = isClaudeCode ? "none" : "";
       if (sessionLlmOptions)
         sessionLlmOptions.style.display = isClaudeCode ? "none" : "";
-      if (sessionNotificationOptions)
-        sessionNotificationOptions.style.display = isClaudeCode ? "none" : "";
-
       if (!isClaudeCode) {
         updateLaunchModeVisibility();
         populateSettingsDropdowns();
@@ -1047,7 +1018,6 @@ function setupManagedSessions(): void {
     // Collect launch mode config for non-Claude agents
     let launchMode: import("../shared/types").LaunchModeConfig | undefined;
     let llmProvider: string | undefined;
-    let notificationChannels: string[] | undefined;
 
     if (agentType !== "claude_code") {
       const selectedMode =
@@ -1092,15 +1062,6 @@ function setupManagedSessions(): void {
       ) as HTMLSelectElement;
       if (llmSelect?.value) llmProvider = llmSelect.value;
 
-      // Notification channels
-      const channelCheckboxes = document.querySelectorAll(
-        "#session-notification-channels input[type=checkbox]:checked",
-      ) as NodeListOf<HTMLInputElement>;
-      if (channelCheckboxes.length > 0) {
-        notificationChannels = Array.from(channelCheckboxes).map(
-          (cb) => cb.value,
-        );
-      }
     }
 
     // Capture hint before closing modal (closeModal clears it)
@@ -1141,7 +1102,6 @@ function setupManagedSessions(): void {
       undefined,
       launchMode,
       llmProvider,
-      notificationChannels,
     );
   };
 
@@ -4008,12 +3968,10 @@ function setupSettingsModal(): void {
     }
   });
 
-  // ---- LLM Providers & Notification Channels ----
+  // ---- LLM Providers ----
 
   const llmList = document.getElementById("settings-llm-list");
-  const notifList = document.getElementById("settings-notification-list");
   const addProviderBtn = document.getElementById("settings-add-provider");
-  const addChannelBtn = document.getElementById("settings-add-channel");
 
   function escHtml(s: string): string {
     return s
@@ -4035,18 +3993,8 @@ function setupSettingsModal(): void {
     return icons[provider.toLowerCase()] || "⚙️";
   }
 
-  function getPlatformIcon(platform: string): string {
-    const icons: Record<string, string> = {
-      feishu: "🪶",
-      dingtalk: "🔔",
-      telegram: "✈️",
-      slack: "💬",
-    };
-    return icons[platform.toLowerCase()] || "📢";
-  }
-
   async function renderSettingsCards(): Promise<void> {
-    if (!llmList || !notifList) return;
+    if (!llmList) return;
     try {
       const resp = await sessionAPI.getSettings();
       if (!resp.ok) return;
@@ -4076,30 +4024,6 @@ function setupSettingsModal(): void {
           .join("");
       }
 
-      // Notification Channels
-      const channels = settings.notificationChannels || {};
-      const channelNames = Object.keys(channels);
-      if (channelNames.length === 0) {
-        notifList.innerHTML = `<div class="settings-empty">${escHtml(t("settings.channelNone"))}</div>`;
-      } else {
-        notifList.innerHTML = channelNames
-          .map((name) => {
-            const ch = channels[name];
-            return `<div class="settings-card" data-name="${escHtml(name)}">
-            <span class="settings-card-icon">${getPlatformIcon(ch.platform)}</span>
-            <div class="settings-card-info">
-              <span class="settings-card-name">${escHtml(name)}</span>
-              <span class="settings-card-detail">${escHtml(ch.platform)}${ch.enabled ? "" : " (disabled)"}</span>
-            </div>
-            <div class="settings-card-actions">
-              <button class="settings-card-btn test-channel" data-name="${escHtml(name)}" title="${escHtml(t("settings.channelTest"))}">🔔</button>
-              <button class="settings-card-btn delete-channel" data-name="${escHtml(name)}" title="${escHtml(t("common.delete"))}">✕</button>
-            </div>
-          </div>`;
-          })
-          .join("");
-      }
-
       // Attach delete provider handlers
       llmList
         .querySelectorAll<HTMLButtonElement>(".delete-provider")
@@ -4112,39 +4036,6 @@ function setupSettingsModal(): void {
           });
         });
 
-      // Attach delete channel handlers
-      notifList
-        .querySelectorAll<HTMLButtonElement>(".delete-channel")
-        .forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            const name = btn.dataset.name;
-            if (!name) return;
-            await sessionAPI.deleteNotificationChannel(name);
-            renderSettingsCards();
-          });
-        });
-
-      // Attach test channel handlers
-      notifList
-        .querySelectorAll<HTMLButtonElement>(".test-channel")
-        .forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            const name = btn.dataset.name;
-            if (!name) return;
-            btn.disabled = true;
-            btn.textContent = "…";
-            try {
-              const result = await sessionAPI.testNotification(name);
-              btn.textContent = result.ok ? "✓" : "✗";
-            } catch {
-              btn.textContent = "✗";
-            }
-            setTimeout(() => {
-              btn.textContent = "🔔";
-              btn.disabled = false;
-            }, 2000);
-          });
-        });
     } catch (err) {
       console.warn("Failed to load settings:", err);
     }
@@ -4217,75 +4108,6 @@ function setupSettingsModal(): void {
     });
   });
 
-  // "Add Channel" inline form
-  addChannelBtn?.addEventListener("click", () => {
-    if (!notifList) return;
-    notifList.querySelector(".settings-inline-form")?.remove();
-    const form = document.createElement("div");
-    form.className = "settings-inline-form";
-    form.innerHTML = `
-      <div class="form-row">
-        <input type="text" placeholder="${escHtml(t("settings.providerName"))}" class="ch-name" />
-        <select class="ch-platform">
-          <option value="feishu">Feishu</option>
-          <option value="dingtalk">DingTalk</option>
-          <option value="telegram">Telegram</option>
-          <option value="slack">Slack</option>
-        </select>
-      </div>
-      <div class="form-row">
-        <input type="text" placeholder="${escHtml(t("settings.channelWebhookUrl"))}" class="ch-webhook" />
-      </div>
-      <div class="form-row">
-        <input type="text" placeholder="${escHtml(t("settings.channelBotToken"))}" class="ch-token" />
-        <input type="text" placeholder="${escHtml(t("settings.channelChatId"))}" class="ch-chatid" />
-      </div>
-      <div class="form-row">
-        <input type="text" placeholder="${escHtml(t("settings.channelSecret"))}" class="ch-secret" />
-      </div>
-      <div class="form-actions">
-        <button class="btn-save">${escHtml(t("common.save"))}</button>
-        <button class="btn-cancel">${escHtml(t("common.cancel"))}</button>
-      </div>`;
-    notifList.appendChild(form);
-    (form.querySelector(".ch-name") as HTMLInputElement)?.focus();
-
-    form
-      .querySelector(".btn-cancel")
-      ?.addEventListener("click", () => form.remove());
-    form.querySelector(".btn-save")?.addEventListener("click", async () => {
-      const name = (
-        form.querySelector(".ch-name") as HTMLInputElement
-      ).value.trim();
-      const platform = (form.querySelector(".ch-platform") as HTMLSelectElement)
-        .value as "feishu" | "dingtalk" | "telegram" | "slack";
-      const webhookUrl = (
-        form.querySelector(".ch-webhook") as HTMLInputElement
-      ).value.trim();
-      const botToken = (
-        form.querySelector(".ch-token") as HTMLInputElement
-      ).value.trim();
-      const chatId = (
-        form.querySelector(".ch-chatid") as HTMLInputElement
-      ).value.trim();
-      const secret = (
-        form.querySelector(".ch-secret") as HTMLInputElement
-      ).value.trim();
-      if (!name) return;
-      const config: Record<string, string> = {};
-      if (webhookUrl) config.webhookUrl = webhookUrl;
-      if (botToken) config.botToken = botToken;
-      if (chatId) config.chatId = chatId;
-      if (secret) config.secret = secret;
-      await sessionAPI.updateSettings({
-        notificationChannels: {
-          [name]: { platform, enabled: true, config },
-        },
-      });
-      form.remove();
-      renderSettingsCards();
-    });
-  });
 }
 
 // Question Modal and Permission Modal moved to src/ui/QuestionModal.ts and src/ui/PermissionModal.ts

@@ -135,7 +135,6 @@ const zh = {
     tabGeneral: "通用",
     tabWorld: "世界",
     tabClaw: "Claw",
-    tabNotifications: "通知",
     tabShortcuts: "快捷键",
     clawHint:
       "为 Claw 代理（OpenClaw、NanoClaw、ZeroClaw）配置 LLM 供应商。Claude Code 使用自带的 API 密钥，无需此配置。",
@@ -166,18 +165,6 @@ const zh = {
     providerBaseUrl: "API 地址",
     providerConfigured: "已配置",
     providerNone: "暂未配置 LLM 供应商",
-    // 通知渠道
-    notificationChannels: "通知渠道",
-    addChannel: "添加渠道",
-    channelPlatform: "平台",
-    channelWebhookUrl: "Webhook 地址",
-    channelBotToken: "Bot Token",
-    channelChatId: "Chat ID",
-    channelSecret: "密钥",
-    channelTest: "测试",
-    channelTestSuccess: "测试消息已发送！",
-    channelTestFailed: "测试失败",
-    channelNone: "暂未配置通知渠道",
   },
 
   // About modal

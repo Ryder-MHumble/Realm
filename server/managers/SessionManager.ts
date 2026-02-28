@@ -140,6 +140,10 @@ export class SessionManager {
       const flags = options.flags || {};
       const claudeArgs: string[] = [];
 
+      // Use configured model or default to haiku for cost savings
+      const model = process.env.VIBECRAFT_CLAUDE_MODEL || "claude-haiku-4-5-20251001";
+      claudeArgs.push(`--model=${model}`);
+
       if (flags.continue === true) {
         claudeArgs.push("-c");
       }
@@ -507,7 +511,7 @@ export class SessionManager {
               session.tmuxSession,
               "-c",
               cwd,
-              `PATH='${this.execPath}' claude --permission-mode=bypassPermissions --dangerously-skip-permissions`,
+              `PATH='${this.execPath}' claude --model=${process.env.VIBECRAFT_CLAUDE_MODEL || "claude-haiku-4-5-20251001"} --permission-mode=bypassPermissions --dangerously-skip-permissions`,
             ],
             getExecOptions(),
             (error) => {
@@ -575,7 +579,7 @@ export class SessionManager {
               session.tmuxSession,
               "-c",
               cwd,
-              `PATH='${this.execPath}' claude -c --permission-mode=bypassPermissions --dangerously-skip-permissions`,
+              `PATH='${this.execPath}' claude -c --model=${process.env.VIBECRAFT_CLAUDE_MODEL || "claude-haiku-4-5-20251001"} --permission-mode=bypassPermissions --dangerously-skip-permissions`,
             ],
             getExecOptions(),
             (error) => {

@@ -135,7 +135,6 @@ const en = {
     tabGeneral: "General",
     tabWorld: "World",
     tabClaw: "Claw",
-    tabNotifications: "Notifications",
     tabShortcuts: "Shortcuts",
     clawHint:
       "Configure LLM providers for Claw agents (OpenClaw, NanoClaw, ZeroClaw). Claude Code uses its own API key and does not need this.",
@@ -169,18 +168,6 @@ const en = {
     providerBaseUrl: "Base URL",
     providerConfigured: "configured",
     providerNone: "No LLM providers configured",
-    // Notification Channels
-    notificationChannels: "Notification Channels",
-    addChannel: "Add Channel",
-    channelPlatform: "Platform",
-    channelWebhookUrl: "Webhook URL",
-    channelBotToken: "Bot Token",
-    channelChatId: "Chat ID",
-    channelSecret: "Secret",
-    channelTest: "Test",
-    channelTestSuccess: "Test message sent!",
-    channelTestFailed: "Test failed",
-    channelNone: "No notification channels configured",
   },
 
   // About modal

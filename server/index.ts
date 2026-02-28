@@ -37,11 +37,6 @@ import { ClaudeCodeAdapter } from "./agents/ClaudeCodeAdapter.js";
 import { NanoClawAdapter } from "./agents/NanoClawAdapter.js";
 import { ZeroClawAdapter } from "./agents/ZeroClawAdapter.js";
 import { OpenClawAdapter } from "./agents/OpenClawAdapter.js";
-import { NotificationManager } from "./bot/NotificationManager.js";
-import { FeishuAdapter } from "./bot/FeishuAdapter.js";
-import { DingTalkAdapter } from "./bot/DingTalkAdapter.js";
-import { TelegramAdapter } from "./bot/TelegramAdapter.js";
-
 // API router
 import { routeRequest, type ServerContext } from "./api/router.js";
 
@@ -106,45 +101,6 @@ function main() {
   zeroAdapter.setSettingsProvider(settingsProvider);
   openAdapter.setSettingsProvider(settingsProvider);
 
-  // ---- Create notification manager (bridges created on start) ----
-  const logN = (msg: string) => log(`[Notification] ${msg}`);
-  const notificationManager = new NotificationManager(
-    () => settingsManager.getSettings(),
-    (channel) => {
-      switch (channel.platform) {
-        case "feishu":
-          return new FeishuAdapter(
-            {
-              webhookUrl: channel.config.webhookUrl || "",
-              appId: channel.config.appId,
-              appSecret: channel.config.appSecret,
-            },
-            logN,
-          );
-        case "dingtalk":
-          return new DingTalkAdapter(
-            {
-              webhookUrl: channel.config.webhookUrl || "",
-              secret: channel.config.secret,
-            },
-            logN,
-          );
-        case "telegram":
-          return new TelegramAdapter(
-            {
-              botToken: channel.config.botToken || "",
-              chatId: channel.config.chatId || "",
-            },
-            logN,
-          );
-        default:
-          logN(`Unknown notification platform: ${channel.platform}`);
-          return null;
-      }
-    },
-    logN,
-  );
-
   // ---- Create automation managers ----
   const autoCompactManager = new AutoCompactManager(
     settingsManager.getAutoCompact() || undefined,
@@ -179,23 +135,10 @@ function main() {
     permissionManager.clearSession(id),
   );
 
-  // Events → Sessions + Notifications + Auto-Continue
+  // Events → Sessions + Auto-Continue
   eventProcessor.setEventHandler((event) => {
     sessionManager.handleEvent(event);
     autoContinueManager.handleEvent(event);
-
-    // Send notifications on stop events
-    if (event.type === "stop" && notificationManager.hasActiveChannels()) {
-      const session = sessionManager.getSession(event.sessionId);
-      if (session) {
-        const stopEvent = event as import("../shared/types.js").StopEvent;
-        notificationManager.notifySession(session, {
-          sessionName: session.name,
-          status: "completed",
-          response: stopEvent.response,
-        });
-      }
-    }
   });
 
   // WebSocket → History + Permissions
@@ -264,18 +207,6 @@ function main() {
   groupsManager.load();
   settingsManager.load();
 
-  // ---- Start notification channels ----
-  notificationManager
-    .start()
-    .catch((e) => log(`Notification start error: ${e}`));
-
-  // Reinitialize notifications when settings change
-  settingsManager.onChange(() => {
-    notificationManager
-      .reinitialize()
-      .catch((e) => log(`Notification reinit error: ${e}`));
-  });
-
   // ---- Start git status tracking ----
   gitStatusManager.setUpdateHandler(({ sessionId, status }) => {
     const session = sessionManager.getSession(sessionId);
@@ -304,7 +235,6 @@ function main() {
     projectsManager,
     agentRegistry,
     settingsManager,
-    notificationManager,
     autoCompactManager,
     autoContinueManager,
   };

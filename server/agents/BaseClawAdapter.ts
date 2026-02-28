@@ -170,7 +170,6 @@ export abstract class BaseClawAdapter implements AgentAdapter {
       capabilities: this.getCapabilities(),
       launchMode,
       llmProvider: config.llmProvider,
-      notificationChannels: config.notificationChannels,
     };
 
     this.log(`Created ${label} session: ${name} (${id.slice(0, 8)}) [${launchMode.mode}]`);
@@ -207,7 +206,6 @@ export abstract class BaseClawAdapter implements AgentAdapter {
       agentConfig: session.agentConfig as Record<string, unknown>,
       launchMode: session.launchMode,
       llmProvider: session.llmProvider,
-      notificationChannels: session.notificationChannels,
     });
     // Transfer handle to original ID
     const newHandle = this.handles.get(newSession.id);

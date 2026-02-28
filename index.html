@@ -320,14 +320,6 @@
           </select>
         </div>
 
-        <!-- Notification channel selector -->
-        <div class="modal-field" id="session-notification-options" style="display: none;">
-          <label data-i18n="newZone.notifications">Notifications</label>
-          <div id="session-notification-channels" class="modal-checkboxes">
-            <!-- Dynamically populated from settings -->
-          </div>
-        </div>
-
         <div class="modal-actions">
           <button type="button" class="modal-btn modal-btn-cancel" id="modal-cancel">✕ <span data-i18n="common.cancel">Cancel</span></button>
           <button type="button" class="modal-btn modal-btn-create" id="modal-create">+ <span data-i18n="common.create">Create</span></button>
@@ -347,7 +339,6 @@
           <button type="button" class="settings-tab-btn active" data-tab="general" data-i18n="settings.tabGeneral">General</button>
           <button type="button" class="settings-tab-btn" data-tab="world" data-i18n="settings.tabWorld">World</button>
           <button type="button" class="settings-tab-btn" data-tab="claw" data-i18n="settings.tabClaw">Claw</button>
-          <button type="button" class="settings-tab-btn" data-tab="notifications" data-i18n="settings.tabNotifications">Notifications</button>
           <button type="button" class="settings-tab-btn" data-tab="shortcuts" data-i18n="settings.tabShortcuts">Shortcuts</button>
         </div>
 
@@ -428,17 +419,6 @@
               <!-- Dynamically populated -->
             </div>
             <button type="button" class="settings-action-btn" id="settings-add-llm">+ <span data-i18n="settings.addProvider">Add Provider</span></button>
-          </div>
-        </div>
-
-        <!-- Tab: Notifications -->
-        <div class="settings-tab-content" data-tab="notifications">
-          <div class="modal-field">
-            <label data-i18n="settings.notificationChannels">Notification Channels</label>
-            <div id="settings-notification-list" class="settings-card-list">
-              <!-- Dynamically populated -->
-            </div>
-            <button type="button" class="settings-action-btn" id="settings-add-channel">+ <span data-i18n="settings.addChannel">Add Channel</span></button>
           </div>
         </div>
 
