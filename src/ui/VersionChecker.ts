@@ -2,7 +2,7 @@
  * VersionChecker - Checks for updates and shows a banner if outdated
  *
  * Compares the local server version (from /health) with the latest version
- * (from version.json on vibecraft.sh). Shows a non-intrusive banner if
+ * (from version.json on realm.sh). Shows a non-intrusive banner if
  * an update is available.
  */
 
@@ -54,8 +54,8 @@ export async function checkForUpdates(): Promise<void> {
     const fakeVersionInfo: VersionInfo = {
       latest: '99.0.0',
       minSupported: isCritical ? '99.0.0' : '0.1.0',
-      releaseUrl: 'https://github.com/nearcyan/vibecraft/releases',
-      updateCommand: 'npx vibecraft@latest setup',
+      releaseUrl: 'https://github.com/nearcyan/realm/releases',
+      updateCommand: 'npx realm@latest setup',
     }
     console.log(`[VersionChecker] Test mode: ${isCritical ? 'critical' : 'update'} banner`)
     showUpdateBanner('0.1.0', fakeVersionInfo, isCritical)
@@ -77,7 +77,7 @@ export async function checkForUpdates(): Promise<void> {
 
     // Get latest version info from static site
     // In dev, this will be from the local server
-    // In production, it comes from vibecraft.sh
+    // In production, it comes from realm.sh
     const versionRes = await fetch('/version.json')
     if (!versionRes.ok) {
       console.log('[VersionChecker] Could not fetch version.json')

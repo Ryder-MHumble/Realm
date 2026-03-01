@@ -1,25 +1,22 @@
 {
-  "name": "vibecraft",
-  "version": "0.1.15",
-  "description": "3D visualization of Claude Code as an interactive workshop",
-  "author": "nearcyan",
+  "name": "realm",
+  "version": "0.1.0",
+  "description": "AI agent orchestration & 3D visualization platform — watch and manage multiple Claude Code instances in a living 3D world",
+  "author": "Elysian Labs",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/nearcyan/vibecraft"
-  },
   "keywords": [
     "claude",
     "claude-code",
+    "ai-agent",
+    "orchestration",
     "visualization",
     "3d",
-    "vibecoding",
-    "ai",
+    "multi-agent",
     "developer-tools"
   ],
   "type": "module",
   "bin": {
-    "vibecraft": "./bin/cli.js"
+    "realm": "./bin/cli.js"
   },
   "files": [
     "bin/",
@@ -38,13 +35,12 @@
     "preview": "vite preview",
     "server": "tsx server/index.ts",
     "prepack": "npm run build",
-    "prepublishOnly": "npm run build",
-    "deploy": "./scripts/deploy.sh",
-    "release": "./scripts/release.sh"
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "chokidar": "^4.0.0",
+    "dingtalk-stream": "^2.1.4",
     "three": "^0.170.0",
     "tone": "^15.1.22",
     "ws": "^8.18.0"

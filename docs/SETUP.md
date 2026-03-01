@@ -1,10 +1,10 @@
-# Vibecraft 安装指南
+# Realm 安装指南
 
 完整的安装和故障排除指南。
 
-## 什么是 Vibecraft？
+## 什么是 Realm？
 
-Vibecraft 将 Claude Code 的活动实时可视化为 3D 工作坊。当 Claude 使用工具（Read、Edit、Bash 等）时，角色会移动到对应的工作站。
+Realm 将 Claude Code 的活动实时可视化为 3D 工作坊。当 Claude 使用工具（Read、Edit、Bash 等）时，角色会移动到对应的工作站。
 
 **两个组成部分：**
 1. **Hook** — 捕获 Claude Code 的事件
@@ -12,7 +12,7 @@ Vibecraft 将 Claude Code 的活动实时可视化为 3D 工作坊。当 Claude 
 
 ```
 ┌─────────────────┐      hooks       ┌─────────────────┐
-│  Claude Code    │ ───────────────→ │  Vibecraft      │
+│  Claude Code    │ ───────────────→ │  Realm      │
 │  （你的 CLI）    │                  │  服务器 (:4003)  │
 └─────────────────┘                  └────────┬────────┘
                                               │
@@ -43,7 +43,7 @@ pacman -S jq tmux
 ### 第 2 步：配置 Hook
 
 ```bash
-npx vibecraft setup
+npx realm setup
 ```
 
 这会自动将 hook 添加到 `~/.claude/settings.json`。
@@ -51,8 +51,8 @@ npx vibecraft setup
 ### 第 3 步：启动服务器并使用 Claude
 
 ```bash
-# 终端 1：启动 Vibecraft 服务器
-npx vibecraft
+# 终端 1：启动 Realm 服务器
+npx realm
 
 # 终端 2：正常使用 Claude Code
 claude
@@ -86,12 +86,12 @@ tmux -V          # 应该输出版本号（可选）
 ### 方式 A：自动配置（推荐）
 
 ```bash
-npx vibecraft setup
+npx realm setup
 ```
 
 这会：
-- 将 hook 脚本复制到 `~/.vibecraft/hooks/vibecraft-hook.sh`
-- 创建 `~/.vibecraft/data/` 目录
+- 将 hook 脚本复制到 `~/.realm/hooks/realm-hook.sh`
+- 创建 `~/.realm/data/` 目录
 - 在 `~/.claude/settings.json` 中配置全部 8 个 hook
 - 备份现有配置
 - 检查 jq/tmux 是否已安装
@@ -135,10 +135,10 @@ npx vibecraft setup
 
 将 `HOOK_PATH` 替换为以下命令的输出：
 ```bash
-npx vibecraft --hook-path
+npx realm --hook-path
 ```
 
-**注意：** 你还需要将 hook 脚本复制到一个稳定位置，并确保 `~/.vibecraft/data/` 目录存在。
+**注意：** 你还需要将 hook 脚本复制到一个稳定位置，并确保 `~/.realm/data/` 目录存在。
 
 ---
 
@@ -151,10 +151,10 @@ npx vibecraft --hook-path
 │                                  │
 │     🔌 Agent Not Connected       │
 │                                  │
-│  Vibecraft 需要本地 agent        │
+│  Realm 需要本地 agent        │
 │  运行以接收事件。                 │
 │                                  │
-│       [ npx vibecraft ]          │
+│       [ npx realm ]          │
 │                                  │
 └──────────────────────────────────┘
 ```
@@ -163,9 +163,9 @@ npx vibecraft --hook-path
 
 | 问题 | 解决方案 |
 |------|---------|
-| 服务器未运行 | 在终端中运行 `npx vibecraft` |
+| 服务器未运行 | 在终端中运行 `npx realm` |
 | 端口错误 | 检查 URL 是否匹配服务器端口（默认：4003） |
-| Hook 未配置 | 运行 `npx vibecraft setup` |
+| Hook 未配置 | 运行 `npx realm setup` |
 
 **快速测试：**
 ```bash
@@ -178,7 +178,7 @@ curl http://localhost:4003/health
 
 ## 从浏览器发送 Prompt
 
-要从 Vibecraft UI 向 Claude 发送 prompt：
+要从 Realm UI 向 Claude 发送 prompt：
 
 ### 第 1 步：在 tmux 中运行 Claude
 
@@ -190,11 +190,11 @@ tmux new -s claude
 claude
 ```
 
-### 第 2 步：正常使用 Vibecraft
+### 第 2 步：正常使用 Realm
 
 ```bash
 # 在另一个终端中
-npx vibecraft
+npx realm
 ```
 
 ### 第 3 步：发送 prompt
@@ -203,7 +203,7 @@ npx vibecraft
 
 **注意：** 如果你的 tmux 会话名称不是 `claude`：
 ```bash
-VIBECRAFT_TMUX_SESSION=myname npx vibecraft
+REALM_TMUX_SESSION=myname npx realm
 ```
 
 ---
@@ -226,7 +226,7 @@ pacman -S jq
 ### Hook 脚本"Permission denied"
 
 ```bash
-chmod +x $(npx vibecraft --hook-path)
+chmod +x $(npx realm --hook-path)
 ```
 
 ### 事件不显示
@@ -238,7 +238,7 @@ curl http://localhost:4003/health
 
 **2. 检查 hook 是否已配置：**
 ```bash
-cat ~/.claude/settings.json | grep vibecraft
+cat ~/.claude/settings.json | grep realm
 ```
 
 **3. 重启 Claude Code**（hook 在启动时加载）
@@ -251,12 +251,12 @@ tmux list-sessions
 
 # 默认会话名称是 'claude'
 # 如果不同，设置环境变量：
-VIBECRAFT_TMUX_SESSION=yourname npx vibecraft
+REALM_TMUX_SESSION=yourname npx realm
 ```
 
 ### 事件重复出现
 
-你可能配置了重复的 hook。检查 `~/.claude/settings.json` 中是否有重复的 vibecraft-hook 条目并删除多余的。然后运行 `npx vibecraft setup` 确保配置正确。
+你可能配置了重复的 hook。检查 `~/.claude/settings.json` 中是否有重复的 realm-hook 条目并删除多余的。然后运行 `npx realm setup` 确保配置正确。
 
 ### 浏览器显示"Disconnected"
 
@@ -285,14 +285,14 @@ VIBECRAFT_TMUX_SESSION=yourname npx vibecraft
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `VIBECRAFT_PORT` | `4003` | 服务器端口 |
-| `VIBECRAFT_TMUX_SESSION` | `claude` | 用于发送 prompt 的 tmux 会话 |
-| `VIBECRAFT_DEBUG` | `false` | 详细日志 |
+| `REALM_PORT` | `4003` | 服务器端口 |
+| `REALM_TMUX_SESSION` | `claude` | 用于发送 prompt 的 tmux 会话 |
+| `REALM_DEBUG` | `false` | 详细日志 |
 | `DEEPGRAM_API_KEY` | （无） | Deepgram 语音输入 API 密钥 |
 
 示例：
 ```bash
-VIBECRAFT_PORT=4005 VIBECRAFT_DEBUG=true npx vibecraft
+REALM_PORT=4005 REALM_DEBUG=true npx realm
 ```
 
 ---
@@ -303,8 +303,8 @@ VIBECRAFT_PORT=4005 VIBECRAFT_DEBUG=true npx vibecraft
 
 ```bash
 # 克隆
-git clone https://github.com/nearcyan/vibecraft
-cd vibecraft
+git clone https://github.com/nearcyan/realm
+cd realm
 
 # 安装依赖
 npm install
@@ -316,28 +316,28 @@ npm run dev
 open http://localhost:4002
 ```
 
-**注意：** 开发模式下，前端和 API 运行在不同端口。生产环境（`npx vibecraft`）一切都在 4003 端口运行。
+**注意：** 开发模式下，前端和 API 运行在不同端口。生产环境（`npx realm`）一切都在 4003 端口运行。
 
 ---
 
 ## 卸载
 
-移除 Vibecraft hook（保留事件数据）：
+移除 Realm hook（保留事件数据）：
 
 ```bash
-npx vibecraft uninstall
+npx realm uninstall
 ```
 
 这会：
-- 从 `~/.claude/settings.json` 中移除 vibecraft hook
-- 从 `~/.vibecraft/hooks/` 中移除 hook 脚本
-- **保留**你在 `~/.vibecraft/data/` 中的数据
+- 从 `~/.claude/settings.json` 中移除 realm hook
+- 从 `~/.realm/hooks/` 中移除 hook 脚本
+- **保留**你在 `~/.realm/data/` 中的数据
 - 不影响你可能配置的其他 hook
 
 要完全删除所有数据：
 
 ```bash
-rm -rf ~/.vibecraft
+rm -rf ~/.realm
 ```
 
 **卸载后重启 Claude Code 使更改生效。**
@@ -346,6 +346,6 @@ rm -rf ~/.vibecraft
 
 ## 获取帮助
 
-- **GitHub Issues:** https://github.com/nearcyan/vibecraft/issues
+- **GitHub Issues:** https://github.com/nearcyan/realm/issues
 - **技术文档：** 参见 [CLAUDE.md](../CLAUDE.md)
 - **编排系统：** 参见 [ORCHESTRATION.md](./ORCHESTRATION.md)

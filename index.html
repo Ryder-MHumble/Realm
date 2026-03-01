@@ -3,28 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Watch and Manage Claude Code in 3D!" />
+    <meta name="description" content="AI agent orchestration &amp; 3D visualization — watch and manage multiple Claude Code instances" />
     <meta name="theme-color" content="#0f172a" />
-    <title>Vibecraft - Watch and Manage Claude Code in 3D!</title>
+    <title>Realm — AI Agent Orchestration &amp; 3D Visualization</title>
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 
     <!-- Open Graph / Social -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Vibecraft" />
-    <meta property="og:title" content="Vibecraft - Watch and Manage Claude Code in 3D!" />
-    <meta property="og:description" content="Watch and Manage Claude Code in 3D!" />
-    <meta property="og:image" content="https://vibecraft.sh/og-image.png" />
-    <meta property="og:url" content="https://vibecraft.sh" />
+    <meta property="og:site_name" content="Realm" />
+    <meta property="og:title" content="Realm — AI Agent Orchestration &amp; 3D Visualization" />
+    <meta property="og:description" content="Watch and manage multiple Claude Code instances in a living 3D world" />
+    <meta property="og:image" content="/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Vibecraft - Watch and Manage Claude Code in 3D!" />
-    <meta name="twitter:description" content="Watch and Manage Claude Code in 3D!" />
-    <meta name="twitter:image" content="https://vibecraft.sh/og-image.png" />
-
-    <!-- Analytics -->
-    <script src="https://cdn.amplitude.com/script/3b78e993d3c7ddad9fb9ae615cc094b6.js"></script>
-    <script>window.amplitude.init('3b78e993d3c7ddad9fb9ae615cc094b6', {"fetchRemoteConfig":true,"autocapture":{"attribution":true,"fileDownloads":true,"formInteractions":true,"pageViews":true,"sessions":true,"elementInteractions":true,"networkTracking":true,"webVitals":true,"frustrationInteractions":true}});</script>
+    <meta name="twitter:title" content="Realm — AI Agent Orchestration &amp; 3D Visualization" />
+    <meta name="twitter:description" content="Watch and manage multiple Claude Code instances in a living 3D world" />
+    <meta name="twitter:image" content="/og-image.png" />
   </head>
   <body>
     <div id="app">
@@ -197,7 +192,7 @@
         <div id="feed-drawer-header">
           <span class="drawer-title" data-i18n="feed.title">Activity</span>
           <div class="drawer-header-right">
-            <button id="about-btn" class="feed-about-btn" data-i18n-title="tooltip.aboutVibecraft" title="About Vibecraft">?</button>
+            <button id="about-btn" class="feed-about-btn" data-i18n-title="tooltip.aboutRealm" title="About Realm">?</button>
             <button id="feed-drawer-close" class="drawer-close-btn" data-i18n-title="tooltip.closeFeed" title="Close (Tab)">&times;</button>
           </div>
         </div>
@@ -399,7 +394,7 @@
               <input type="number" id="settings-port" value="4003" min="1" max="65535" />
               <span id="settings-port-status" class="port-status"></span>
             </div>
-            <div class="field-hint" data-i18n="settings.portHint">Port where the Vibecraft agent is running. Changes require refresh.</div>
+            <div class="field-hint" data-i18n="settings.portHint">Port where the Realm agent is running. Changes require refresh.</div>
           </div>
 
           <div class="modal-field">
@@ -443,23 +438,23 @@
     <div id="about-modal">
       <div class="modal-content about-modal-content">
         <div class="modal-header">
-          <h3 data-i18n="about.title">Vibecraft</h3>
+          <h3 data-i18n="about.title">Realm</h3>
         </div>
 
         <div class="about-description">
-          <p data-i18n="about.description">Vibecraft is a 3D visualization app for Claude Code.</p>
+          <p data-i18n="about.description">Realm is a 3D visualization app for Claude Code.</p>
           <p data-i18n="about.subtitle">Watch and manage your claudes in real-time - now featuring hexagonal grids!</p>
-          <p class="about-subtitle" data-i18n="about.privacyNote">Vibecraft syncs with claude code instances running on your own machine. No files or
+          <p class="about-subtitle" data-i18n="about.privacyNote">Realm syncs with claude code instances running on your own machine. No files or
           code are sent to the web server.</p>
         </div>
 
         <div class="about-section">
           <div class="about-section-title" data-i18n="about.commands">Commands</div>
           <div class="about-commands">
-            <div class="about-cmd"><code>npx vibecraft</code><span data-i18n="about.startServer">Start server</span></div>
-            <div class="about-cmd"><code>npx vibecraft doctor</code><span data-i18n="about.diagnoseIssues">Diagnose issues</span></div>
-            <div class="about-cmd"><code>npx vibecraft setup</code><span data-i18n="about.reinstallHooks">Reinstall hooks</span></div>
-            <div class="about-cmd"><code>npx vibecraft uninstall</code><span data-i18n="about.removeHooks">Remove hooks</span></div>
+            <div class="about-cmd"><code>npx realm</code><span data-i18n="about.startServer">Start server</span></div>
+            <div class="about-cmd"><code>npx realm doctor</code><span data-i18n="about.diagnoseIssues">Diagnose issues</span></div>
+            <div class="about-cmd"><code>npx realm setup</code><span data-i18n="about.reinstallHooks">Reinstall hooks</span></div>
+            <div class="about-cmd"><code>npx realm uninstall</code><span data-i18n="about.removeHooks">Remove hooks</span></div>
           </div>
         </div>
 
@@ -607,17 +602,17 @@
     <!-- Not Connected Overlay -->
     <div id="not-connected-overlay">
       <div class="not-connected-content">
-        <h2 data-i18n="offline.title">Vibecraft!</h2>
+        <h2 data-i18n="offline.title">Realm!</h2>
         <p class="not-connected-description" data-i18n="offline.description">
-          Vibecraft is a 3D app to watch and manage Claude Code instances.
+          Realm is a 3D app to watch and manage Claude Code instances.
         </p>
         <p class="not-connected-privacy" data-i18n="offline.privacyNote">
-          Vibecraft syncs with CC instances running on your local machine. Vibecraft is an interface - no files or code
+          Realm syncs with CC instances running on your local machine. Realm is an interface - no files or code
           are sent to this server.
         </p>
         <div class="not-connected-setup">
           <p class="not-connected-setup-label" data-i18n="offline.getStarted">Get started:</p>
-          <div class="not-connected-code">npx vibecraft setup && npx vibecraft</div>
+          <div class="not-connected-code">npx realm setup && npx realm</div>
         </div>
         <div class="not-connected-actions">
           <button class="not-connected-btn not-connected-btn-retry" id="retry-connection">↻ <span data-i18n="offline.reconnect">Reconnect</span></button>

@@ -1,5 +1,5 @@
 /**
- * Vibecraft Server Configuration
+ * Realm Server Configuration
  *
  * Loads configuration from environment variables with defaults from shared/defaults.ts.
  * Also provides path validation and origin checking utilities.
@@ -71,7 +71,7 @@ export function isOriginAllowed(origin: string | undefined): boolean {
     }
 
     // Production: exact hostname match with HTTPS required
-    if (url.hostname === "vibecraft.sh" && url.protocol === "https:") {
+    if (url.hostname === "realm.sh" && url.protocol === "https:") {
       return true;
     }
 
@@ -121,52 +121,52 @@ export function loadConfig(): ServerConfig {
 
   return {
     port: parseInt(
-      process.env.VIBECRAFT_PORT ?? String(DEFAULTS.SERVER_PORT),
+      process.env.REALM_PORT ?? String(DEFAULTS.SERVER_PORT),
       10,
     ),
     eventsFile: resolve(
-      expandHome(process.env.VIBECRAFT_EVENTS_FILE ?? DEFAULTS.EVENTS_FILE),
+      expandHome(process.env.REALM_EVENTS_FILE ?? DEFAULTS.EVENTS_FILE),
     ),
     pendingPromptFile: resolve(
       expandHome(
-        process.env.VIBECRAFT_PROMPT_FILE ??
-          "~/.vibecraft/data/pending-prompt.txt",
+        process.env.REALM_PROMPT_FILE ??
+          "~/.realm/data/pending-prompt.txt",
       ),
     ),
     maxEvents: parseInt(
-      process.env.VIBECRAFT_MAX_EVENTS ?? String(DEFAULTS.MAX_EVENTS),
+      process.env.REALM_MAX_EVENTS ?? String(DEFAULTS.MAX_EVENTS),
       10,
     ),
-    debug: process.env.VIBECRAFT_DEBUG === "true",
-    tmuxSession: process.env.VIBECRAFT_TMUX_SESSION ?? DEFAULTS.TMUX_SESSION,
+    debug: process.env.REALM_DEBUG === "true",
+    tmuxSession: process.env.REALM_TMUX_SESSION ?? DEFAULTS.TMUX_SESSION,
     sessionsFile: resolve(
-      expandHome(process.env.VIBECRAFT_SESSIONS_FILE ?? DEFAULTS.SESSIONS_FILE),
+      expandHome(process.env.REALM_SESSIONS_FILE ?? DEFAULTS.SESSIONS_FILE),
     ),
     tilesFile: resolve(
       expandHome(
-        process.env.VIBECRAFT_TILES_FILE ?? "~/.vibecraft/data/tiles.json",
+        process.env.REALM_TILES_FILE ?? "~/.realm/data/tiles.json",
       ),
     ),
-    groupsFile: resolve(expandHome("~/.vibecraft/data/groups.json")),
+    groupsFile: resolve(expandHome("~/.realm/data/groups.json")),
     workingTimeoutMs: 300_000,
     maxBodySize: 1024 * 1024,
     workingCheckIntervalMs: 10_000,
-    uploadsDir: resolve(expandHome("~/.vibecraft/uploads")),
+    uploadsDir: resolve(expandHome("~/.realm/uploads")),
     execPath,
     execOptions: { env: { ...process.env, PATH: execPath } },
     version: getPackageVersion(__dirname),
 
     // Bot bridge
-    botEnabled: process.env.VIBECRAFT_BOT_ENABLED === "true",
-    botPlatform: process.env.VIBECRAFT_BOT_PLATFORM ?? "feishu",
-    feishuWebhookUrl: process.env.VIBECRAFT_FEISHU_WEBHOOK_URL ?? "",
-    feishuAppId: process.env.VIBECRAFT_FEISHU_APP_ID ?? "",
-    feishuAppSecret: process.env.VIBECRAFT_FEISHU_APP_SECRET ?? "",
+    botEnabled: process.env.REALM_BOT_ENABLED === "true",
+    botPlatform: process.env.REALM_BOT_PLATFORM ?? "feishu",
+    feishuWebhookUrl: process.env.REALM_FEISHU_WEBHOOK_URL ?? "",
+    feishuAppId: process.env.REALM_FEISHU_APP_ID ?? "",
+    feishuAppSecret: process.env.REALM_FEISHU_APP_SECRET ?? "",
 
     settingsFile: resolve(
       expandHome(
-        process.env.VIBECRAFT_SETTINGS_FILE ??
-          "~/.vibecraft/data/settings.json",
+        process.env.REALM_SETTINGS_FILE ??
+          "~/.realm/data/settings.json",
       ),
     ),
   };

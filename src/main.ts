@@ -1,5 +1,5 @@
 /**
- * Vibecraft - Main Entry Point
+ * Realm - Main Entry Point
  *
  * Visualize Claude Code as an interactive 3D workshop
  * Supports multiple Claude instances in separate zones
@@ -88,7 +88,7 @@ import type { Locale } from "./i18n";
 // ============================================================================
 
 // Injected by Vite at build time from shared/defaults.ts
-declare const __VIBECRAFT_DEFAULT_PORT__: number;
+declare const __REALM_DEFAULT_PORT__: number;
 
 // Port configuration: URL param > localStorage > default from shared/defaults.ts
 function getAgentPort(): number {
@@ -96,10 +96,10 @@ function getAgentPort(): number {
   const urlPort = params.get("port");
   if (urlPort) return parseInt(urlPort, 10);
 
-  const storedPort = localStorage.getItem("vibecraft-agent-port");
+  const storedPort = localStorage.getItem("realm-agent-port");
   if (storedPort) return parseInt(storedPort, 10);
 
-  return __VIBECRAFT_DEFAULT_PORT__;
+  return __REALM_DEFAULT_PORT__;
 }
 
 const AGENT_PORT = getAgentPort();
@@ -485,9 +485,9 @@ function selectManagedSession(sessionId: string | null): void {
 
   // Persist selection to localStorage
   if (sessionId) {
-    localStorage.setItem("vibecraft-selected-session", sessionId);
+    localStorage.setItem("realm-selected-session", sessionId);
   } else {
-    localStorage.removeItem("vibecraft-selected-session");
+    localStorage.removeItem("realm-selected-session");
   }
 
   // Update feed filter to show only this session's events (or all if null)
@@ -1843,9 +1843,9 @@ function setupClickToPrompt(): void {
       if (!state.scene) return;
       const hexes = state.scene.getPaintedHexes();
       const zoneElevations = state.scene.getZoneElevations();
-      localStorage.setItem("vibecraft-hexart", JSON.stringify(hexes));
+      localStorage.setItem("realm-hexart", JSON.stringify(hexes));
       localStorage.setItem(
-        "vibecraft-zone-elevations",
+        "realm-zone-elevations",
         JSON.stringify(zoneElevations),
       );
       const elevCount = Object.keys(zoneElevations).length;
@@ -3750,7 +3750,7 @@ function setupSettingsModal(): void {
     tabPanels.forEach((panel) =>
       panel.classList.toggle("active", panel.dataset.tab === tabName),
     );
-    localStorage.setItem("vibecraft-settings-tab", tabName);
+    localStorage.setItem("realm-settings-tab", tabName);
   }
 
   tabBtns.forEach((btn) => {
@@ -3771,8 +3771,8 @@ function setupSettingsModal(): void {
   drawMode.onClear(() => {
     state.scene?.clearAllPaintedHexes();
     // Clear from localStorage too
-    localStorage.removeItem("vibecraft-hexart");
-    localStorage.removeItem("vibecraft-zone-elevations");
+    localStorage.removeItem("realm-hexart");
+    localStorage.removeItem("realm-zone-elevations");
     console.log("Cleared hex art and zone elevations from localStorage");
   });
 
@@ -3783,7 +3783,7 @@ function setupSettingsModal(): void {
   const portStatus = document.getElementById("settings-port-status");
 
   // Load saved volume from localStorage
-  const savedVolume = localStorage.getItem("vibecraft-volume");
+  const savedVolume = localStorage.getItem("realm-volume");
   if (savedVolume !== null) {
     const vol = parseInt(savedVolume, 10) / 100;
     soundManager.setVolume(vol);
@@ -3792,7 +3792,7 @@ function setupSettingsModal(): void {
   }
 
   // Load saved grid size from localStorage
-  const savedGridSize = localStorage.getItem("vibecraft-grid-size");
+  const savedGridSize = localStorage.getItem("realm-grid-size");
   if (savedGridSize !== null) {
     const size = parseInt(savedGridSize, 10);
     state.scene?.setGridRange(size);
@@ -3801,7 +3801,7 @@ function setupSettingsModal(): void {
   }
 
   // Load saved spatial audio setting from localStorage
-  const savedSpatial = localStorage.getItem("vibecraft-spatial-audio");
+  const savedSpatial = localStorage.getItem("realm-spatial-audio");
   if (savedSpatial !== null) {
     const enabled = savedSpatial === "true";
     soundManager.setSpatialEnabled(enabled);
@@ -3809,7 +3809,7 @@ function setupSettingsModal(): void {
   }
 
   // Load saved streaming mode setting from localStorage
-  const savedStreaming = localStorage.getItem("vibecraft-streaming-mode");
+  const savedStreaming = localStorage.getItem("realm-streaming-mode");
   if (savedStreaming !== null) {
     const enabled = savedStreaming === "true";
     if (streamingCheckbox) streamingCheckbox.checked = enabled;
@@ -3851,7 +3851,7 @@ function setupSettingsModal(): void {
     // Sync streaming mode checkbox
     if (streamingCheckbox) {
       streamingCheckbox.checked =
-        localStorage.getItem("vibecraft-streaming-mode") === "true";
+        localStorage.getItem("realm-streaming-mode") === "true";
     }
     // Sync port input
     if (portInput) portInput.value = String(AGENT_PORT);
@@ -3866,7 +3866,7 @@ function setupSettingsModal(): void {
 
     // Restore last active tab
     const savedTab =
-      localStorage.getItem("vibecraft-settings-tab") || "general";
+      localStorage.getItem("realm-settings-tab") || "general";
     switchSettingsTab(savedTab);
 
     modal.classList.add("visible");
@@ -3888,7 +3888,7 @@ function setupSettingsModal(): void {
     const vol = parseInt(volumeSlider.value, 10);
     soundManager.setVolume(vol / 100);
     if (volumeValue) volumeValue.textContent = `${vol}%`;
-    localStorage.setItem("vibecraft-volume", String(vol));
+    localStorage.setItem("realm-volume", String(vol));
     // Play tick with pitch based on slider position
     if (state.soundEnabled) {
       soundManager.playSliderTick(vol / 100);
@@ -3900,7 +3900,7 @@ function setupSettingsModal(): void {
     const size = parseInt(gridSizeSlider.value, 10);
     if (gridSizeValue) gridSizeValue.textContent = String(size);
     state.scene?.setGridRange(size);
-    localStorage.setItem("vibecraft-grid-size", String(size));
+    localStorage.setItem("realm-grid-size", String(size));
     // Play tick with pitch based on slider position (normalized 5-80 to 0-1)
     if (state.soundEnabled) {
       soundManager.playSliderTick((size - 5) / 75);
@@ -3911,13 +3911,13 @@ function setupSettingsModal(): void {
   spatialCheckbox?.addEventListener("change", () => {
     const enabled = spatialCheckbox.checked;
     soundManager.setSpatialEnabled(enabled);
-    localStorage.setItem("vibecraft-spatial-audio", String(enabled));
+    localStorage.setItem("realm-spatial-audio", String(enabled));
   });
 
   // Streaming mode checkbox
   streamingCheckbox?.addEventListener("change", () => {
     const enabled = streamingCheckbox.checked;
-    localStorage.setItem("vibecraft-streaming-mode", String(enabled));
+    localStorage.setItem("realm-streaming-mode", String(enabled));
     applyStreamingMode(enabled);
   });
 
@@ -3925,7 +3925,7 @@ function setupSettingsModal(): void {
   portInput?.addEventListener("change", () => {
     const newPort = parseInt(portInput.value, 10);
     if (newPort && newPort > 0 && newPort <= 65535 && newPort !== AGENT_PORT) {
-      localStorage.setItem("vibecraft-agent-port", String(newPort));
+      localStorage.setItem("realm-agent-port", String(newPort));
       if (
         confirm(
           `Port changed to ${newPort}. Reload page to connect to new port?`,
@@ -4264,7 +4264,7 @@ function init() {
   }, 100);
 
   // Load saved hex art from localStorage
-  const savedHexArt = localStorage.getItem("vibecraft-hexart");
+  const savedHexArt = localStorage.getItem("realm-hexart");
   if (savedHexArt) {
     try {
       const hexes = JSON.parse(savedHexArt);
@@ -4276,7 +4276,7 @@ function init() {
   }
 
   // Load saved zone elevations from localStorage
-  const savedZoneElevations = localStorage.getItem("vibecraft-zone-elevations");
+  const savedZoneElevations = localStorage.getItem("realm-zone-elevations");
   if (savedZoneElevations) {
     try {
       const elevations = JSON.parse(savedZoneElevations);
@@ -4614,7 +4614,7 @@ function init() {
     // Restore or auto-select session
     if (!state.selectedManagedSession && sessions.length > 0) {
       // Try to restore from localStorage
-      const savedSessionId = localStorage.getItem("vibecraft-selected-session");
+      const savedSessionId = localStorage.getItem("realm-selected-session");
       const savedSession = savedSessionId
         ? sessions.find((s) => s.id === savedSessionId)
         : null;
@@ -4818,7 +4818,7 @@ function init() {
   });
   (window as any).demo = demo;
 
-  console.log("Vibecraft initialized (multi-session enabled)");
+  console.log("Realm initialized (multi-session enabled)");
   console.log(
     "Demo: window.demo.setupOffice() → window.demo.runDemoSequence()",
   );
@@ -4846,4 +4846,4 @@ window.addEventListener("load", init);
 window.addEventListener("beforeunload", cleanup);
 
 // Export for debugging
-(window as unknown as { vibecraft: AppState }).vibecraft = state;
+(window as unknown as { realm: AppState }).realm = state;

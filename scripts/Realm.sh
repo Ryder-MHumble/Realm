@@ -1,5 +1,5 @@
 #!/bin/bash
-# Vibecraft — start / stop / status
+# Realm — start / stop / status
 # Usage: ./scripts/Realm.sh [start|stop|status]
 
 set -e
@@ -12,9 +12,9 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-CLIENT_PORT=${VIBECRAFT_CLIENT_PORT:-4002}
-SERVER_PORT=${VIBECRAFT_PORT:-4003}
-TMUX_SESSION="vibecraft-dev"
+CLIENT_PORT=${REALM_CLIENT_PORT:-4002}
+SERVER_PORT=${REALM_PORT:-4003}
+TMUX_SESSION="realm-dev"
 
 # ═══════════════════════════════════════════════
 #  start
@@ -23,7 +23,7 @@ cmd_start() {
   cd "$PROJECT_DIR"
 
   echo ""
-  echo -e "${CYAN}  Vibecraft Start${NC}"
+  echo -e "${CYAN}  Realm Start${NC}"
   echo -e "${DIM}  ───────────────${NC}"
   echo ""
 
@@ -60,7 +60,7 @@ cmd_start() {
   kill_port $SERVER_PORT
 
   # 4. Ensure data directory
-  mkdir -p ~/.vibecraft/data
+  mkdir -p ~/.realm/data
 
   # 5. Start in tmux
   DEV_CMD="npm"
@@ -82,7 +82,7 @@ cmd_start() {
   # 7. Report
   if curl -s -m 1 "http://localhost:$SERVER_PORT/health" 2>/dev/null | grep -q ok; then
     echo ""
-    echo -e "  ${GREEN}✓ Vibecraft is running${NC}"
+    echo -e "  ${GREEN}✓ Realm is running${NC}"
     echo ""
     echo -e "    Frontend   ${CYAN}http://localhost:$CLIENT_PORT${NC}"
     echo -e "    API        ${CYAN}http://localhost:$SERVER_PORT${NC}"
@@ -103,30 +103,30 @@ cmd_start() {
 # ═══════════════════════════════════════════════
 cmd_stop() {
   echo ""
-  echo -e "${CYAN}  Vibecraft Stop${NC}"
+  echo -e "${CYAN}  Realm Stop${NC}"
   echo -e "${DIM}  ──────────────${NC}"
   echo ""
 
   KILLED=0
 
-  # 1. Kill vibecraft dev tmux session
+  # 1. Kill realm dev tmux session
   if tmux has-session -t $TMUX_SESSION 2>/dev/null; then
     tmux kill-session -t $TMUX_SESSION
     echo -e "  ${DIM}✓ Killed tmux session: $TMUX_SESSION${NC}"
     ((KILLED++)) || true
   fi
 
-  # 2. Kill managed vibecraft tmux sessions
-  VIBECRAFT_SESSIONS=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^vibecraft-' || true)
-  if [ -n "$VIBECRAFT_SESSIONS" ]; then
+  # 2. Kill managed realm tmux sessions
+  REALM_SESSIONS=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^realm-' || true)
+  if [ -n "$REALM_SESSIONS" ]; then
     while IFS= read -r sess; do
       tmux kill-session -t "$sess" 2>/dev/null || true
       echo -e "  ${DIM}✓ Killed tmux session: $sess${NC}"
       ((KILLED++)) || true
-    done <<< "$VIBECRAFT_SESSIONS"
+    done <<< "$REALM_SESSIONS"
   fi
 
-  # 3. Kill processes on vibecraft ports
+  # 3. Kill processes on realm ports
   kill_port() {
     local port=$1
     local pids=$(lsof -ti :$port 2>/dev/null || true)
@@ -139,8 +139,8 @@ cmd_stop() {
   kill_port $CLIENT_PORT
   kill_port $SERVER_PORT
 
-  # 4. Kill remaining vibecraft node processes
-  VIBE_PIDS=$(pgrep -f "vibecraft.*server|vite.*vibecraft" 2>/dev/null || true)
+  # 4. Kill remaining realm node processes
+  VIBE_PIDS=$(pgrep -f "realm.*server|vite.*realm" 2>/dev/null || true)
   if [ -n "$VIBE_PIDS" ]; then
     echo "$VIBE_PIDS" | xargs kill -9 2>/dev/null || true
     echo -e "  ${DIM}✓ Killed remaining node processes${NC}"
@@ -152,7 +152,7 @@ cmd_stop() {
   if [ $KILLED -gt 0 ]; then
     echo -e "  ${GREEN}✓ Cleaned up $KILLED item(s)${NC}"
   else
-    echo -e "  ${DIM}  Nothing to clean up — Vibecraft wasn't running${NC}"
+    echo -e "  ${DIM}  Nothing to clean up — Realm wasn't running${NC}"
   fi
 
   # 6. Verify ports are free
@@ -176,7 +176,7 @@ cmd_stop() {
 # ═══════════════════════════════════════════════
 cmd_status() {
   echo ""
-  echo -e "${CYAN}  Vibecraft Status${NC}"
+  echo -e "${CYAN}  Realm Status${NC}"
   echo -e "${DIM}  ────────────────${NC}"
   echo ""
 
@@ -214,9 +214,9 @@ case "${1:-start}" in
   *)
     echo "Usage: $0 [start|stop|status]"
     echo ""
-    echo "  start   Start Vibecraft dev servers (default)"
-    echo "  stop    Stop all Vibecraft processes"
-    echo "  status  Check if Vibecraft is running"
+    echo "  start   Start Realm dev servers (default)"
+    echo "  stop    Stop all Realm processes"
+    echo "  status  Check if Realm is running"
     exit 1
     ;;
 esac

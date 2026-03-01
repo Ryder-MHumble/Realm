@@ -1,5 +1,5 @@
 /**
- * SpatialAudioContext - Manages 3D audio positioning for Vibecraft
+ * SpatialAudioContext - Manages 3D audio positioning for Realm
  *
  * Provides distance-based volume attenuation and stereo panning
  * based on sound source position relative to the camera/listener.

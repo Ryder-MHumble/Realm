@@ -1,26 +1,26 @@
 # 存储架构
 
-本文档介绍 Vibecraft 的数据存储位置及设计原因。
+本文档介绍 Realm 的数据存储位置及设计原因。
 
 ## 概述
 
-Vibecraft 使用两个存储位置：
+Realm 使用两个存储位置：
 
 1. **localStorage**（浏览器端）— 用户偏好设置和离线可用内容
-2. **服务器文件**（`~/.vibecraft/data/`）— 共享状态和服务器管理的数据
+2. **服务器文件**（`~/.realm/data/`）— 共享状态和服务器管理的数据
 
 ## localStorage（浏览器端）
 
 | 键名 | 数据 | 类型 |
 |------|------|------|
-| `vibecraft-selected-session` | 当前选中的会话 ID | UI 状态 |
-| `vibecraft-volume` | 音量 (0-100) | 用户偏好 |
-| `vibecraft-spatial-audio` | 空间音频是否启用 (true/false) | 用户偏好 |
-| `vibecraft-grid-size` | 世界网格大小 (5-80 六角环) | 用户偏好 |
-| `vibecraft-agent-port` | 自定义服务器端口覆盖 | 用户配置 |
-| `vibecraft-keybinds` | 自定义键盘绑定 | 用户偏好 |
-| `vibecraft-hexart` | 绘制的六角格数据 `[{q, r, color, height}]` | 创意内容 |
-| `vibecraft-collapsed-groups` | 折叠的部门 ID 列表 `["group-1", ...]` | UI 状态 |
+| `realm-selected-session` | 当前选中的会话 ID | UI 状态 |
+| `realm-volume` | 音量 (0-100) | 用户偏好 |
+| `realm-spatial-audio` | 空间音频是否启用 (true/false) | 用户偏好 |
+| `realm-grid-size` | 世界网格大小 (5-80 六角环) | 用户偏好 |
+| `realm-agent-port` | 自定义服务器端口覆盖 | 用户配置 |
+| `realm-keybinds` | 自定义键盘绑定 | 用户偏好 |
+| `realm-hexart` | 绘制的六角格数据 `[{q, r, color, height}]` | 创意内容 |
+| `realm-collapsed-groups` | 折叠的部门 ID 列表 `["group-1", ...]` | UI 状态 |
 
 ### 优点
 - **即时** — 无网络延迟
@@ -35,7 +35,7 @@ Vibecraft 使用两个存储位置：
 
 ### 数据格式
 
-**六角格艺术（`vibecraft-hexart`）：**
+**六角格艺术（`realm-hexart`）：**
 ```json
 [
   { "q": 0, "r": 0, "color": 2281966, "height": 0.5 },
@@ -43,14 +43,14 @@ Vibecraft 使用两个存储位置：
 ]
 ```
 
-**键盘绑定（`vibecraft-keybinds`）：**
+**键盘绑定（`realm-keybinds`）：**
 ```json
 {
   "focus-toggle": { "key": "Tab", "alt": false, "ctrl": false, "shift": false }
 }
 ```
 
-## 服务器文件（`~/.vibecraft/data/`）
+## 服务器文件（`~/.realm/data/`）
 
 | 文件 | 数据 | 管理者 |
 |------|------|--------|
@@ -67,7 +67,7 @@ Vibecraft 使用两个存储位置：
 - **服务器可操作** — 服务器管理 tmux 进程，广播更新
 
 ### 缺点
-- **依赖服务器** — 必须有 vibecraft 服务器运行
+- **依赖服务器** — 必须有 realm 服务器运行
 - **网络延迟** — 比 localStorage 稍慢
 - **更多代码** — 需要 API 端点、WebSocket 同步
 

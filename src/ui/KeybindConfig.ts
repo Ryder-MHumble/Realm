@@ -63,7 +63,7 @@ const DEFAULT_KEYBIND_ACTIONS: KeybindAction[] = [
 // Storage
 // ============================================================================
 
-const STORAGE_KEY = 'vibecraft-keybinds'
+const STORAGE_KEY = 'realm-keybinds'
 
 function loadFromStorage(): Record<string, Keybind[]> {
   try {

@@ -1,137 +1,188 @@
-# Vibecraft
+# Realm
+![Realm](public/realm.png)
+> AI agent orchestration & 3D visualization — watch and manage multiple Claude Code instances in a living, breathing world.
 
-![Vibecraft Screenshot](public/og-image.png)
+Realm turns your AI coding sessions into something you can *see*. Every tool call animates a character moving through a 3D workshop. Every session gets its own hexagonal zone. Multiple agents collaborate in parallel, and an orchestration engine decomposes tasks and routes them automatically.
 
-Manage Claude Code in style!
+## What Realm Does
 
-**[Try it instantly at vibecraft.sh](https://vibecraft.sh)** — still connects to your local Claude Code instances!
+**Visualize** — Claude's tool calls drive real-time 3D animations. Reading files? The character walks to the bookshelf. Running bash? The terminal glows. Writing code? Pencil and ink pot.
 
-**New:**
-- **Spatial Audio** — Claude behind you? Claude on your left? No claublem!
-- **Animations** — What's Claude up to? Watch him! ◕ ‿ ◕
+**Orchestrate** — Run multiple Claude Code instances (or Claw agents) simultaneously. An LLM-powered task router decomposes natural language requests and dispatches them to the right session automatically.
 
-Vibecraft uses your own local Claude Code instances — no files or prompts are shared.
+**Connect** — External agents (OpenClaw, NanoClaw, ZeroClaw) and IM platforms (DingTalk, Feishu, Telegram) can push tasks via REST API. Results are collected and returned via webhook callback.
 
-![Three.js](https://img.shields.io/badge/Three.js-black?logo=threedotjs) ![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white) ![npm](https://img.shields.io/npm/v/vibecraft)
+![Multi-clauding](public/multiclaude.png)
 
 ## Requirements
 
-- **macOS or Linux** (Windows not supported - hooks require bash)
+- **macOS or Linux** (Windows not supported — hooks require bash)
 - **Node.js** 18+
-- **jq** - for hook scripts (`brew install jq` / `apt install jq`)
-- **tmux** - for session management (`brew install tmux` / `apt install tmux`)
+- **jq** (`brew install jq` / `apt install jq`)
+- **tmux** (`brew install tmux` / `apt install tmux`)
 
 ## Quick Start
 
 ```bash
 # 1. Install dependencies
-brew install jq tmux       # macOS
-# sudo apt install jq tmux  # Ubuntu/Debian
+brew install jq tmux
 
-# 2. Configure hooks (one time)
-npx vibecraft setup
+# 2. Configure hooks (once)
+npx realm setup
 
-# 3. Start server
-npx vibecraft
+# 3. Start
+npx realm
 ```
 
-Open http://localhost:4003 and use Claude Code normally. You'll see Claude move around the workshop as it uses tools.
+Open `http://localhost:4003` and use Claude Code normally. Watch it move through the workshop as it works.
 
 **From source:**
-```bash
-git clone https://github.com/nearcyan/vibecraft
-cd vibecraft && npm install && npm run dev
-# Opens on http://localhost:4002
-```
-
-**To uninstall:** `npx vibecraft uninstall` (removes hooks, keeps your data)
-
-## Browser Control (Optional)
-
-Run Claude in tmux to send prompts from browser:
 
 ```bash
-tmux new -s claude
-claude
+git clone <this-repo>
+cd Realm && npm install && npm run dev
 ```
-
-Then use the input field in the visualization with "Send to tmux" checked.
 
 ## Stations
 
-| Station | Tools | Details |
-|---------|-------|---------|
-| Bookshelf | Read | Books on shelves |
-| Desk | Write | Paper, pencil, ink pot |
-| Workbench | Edit | Wrench, gears, bolts |
-| Terminal | Bash | Glowing screen |
-| Scanner | Grep, Glob | Telescope with lens |
-| Antenna | WebFetch, WebSearch | Satellite dish |
-| Portal | Task (subagents) | Glowing ring portal |
-| Taskboard | TodoWrite | Board with sticky notes |
+| Station   | Tools               | Description               |
+|-----------|---------------------|---------------------------|
+| Bookshelf | Read                | Character browses files   |
+| Desk      | Write               | Pencil, ink pot, paper    |
+| Workbench | Edit                | Wrench, gears, bolts      |
+| Terminal  | Bash                | Glowing green screen      |
+| Scanner   | Grep, Glob          | Telescope sweeps the room |
+| Antenna   | WebFetch, WebSearch | Satellite dish spins      |
+| Portal    | Task (subagents)    | Glowing ring, mini-clones |
+| Taskboard | TodoWrite           | Sticky-note board         |
 
 ## Features
 
-- **Floating context labels** - See file paths and commands above active stations
-- **Thought bubbles** - Claude shows thinking animation while processing
-- **Response capture** - Claude's responses appear in the activity feed
-- **Subagent visualization** - Mini-Claudes spawn at portal for parallel tasks
-- **Cancel button** - Send Ctrl+C to interrupt Claude
-- **Split-screen layout** - 60% 3D scene (Workshop), 40% activity feed
-- **Voice input** - Speak prompts with real-time transcription (requires Deepgram API key)
-- **Attention system** - Zones pulse when sessions need input or finish
-- **Sound effects** - Synthesized audio feedback for tools and events ([docs/SOUND.md](docs/SOUND.md))
-- **Draw mode** - Paint hex tiles with colors, 3D stacking, and text labels (press `D`)
-- **Text labels** - Add multi-line labels to hex tiles with custom modal
-- **Zone context menus** - Right-click zones for Info (`I`) or quick Command (`C`) input
-- **Station panels** - Toggle with `P` to see recent tool history per workstation
-- **Context-aware animations** - Claude celebrates commits, shakes head on errors
+- **Multi-agent zones** — Each Claude session gets a hex zone with its own character and workstations
+- **Real-time 3D animations** — Context-aware: celebrates commits, shakes head on errors
+- **Subagent visualization** — Mini-characters spawn at the Portal for parallel sub-tasks
+- **Spatial audio** — Synthesized sounds positioned in 3D space (Tone.js, no audio files)
+- **Activity feed** — Live stream of tool calls, responses, and thinking bubbles
+- **Voice input** — Speak prompts with real-time transcription (Deepgram API key required)
+- **Draw mode** — Paint hex tiles with colors, 3D stacking, and text labels (`D`)
+- **Department grouping** — Drag zones together into departments (Civ-6-style groups)
+- **Station panels** — Per-workstation history (`P`)
+- **Attention system** — Zones pulse when a session needs input or finishes
+- **Auto-compact / Auto-continue** — Keeps long-running sessions alive automatically
+- **IM integration** — Receive tasks from DingTalk, Feishu, or Telegram; results sent back automatically
 
-## Multi-clauding
+## Multi-Agent Orchestration
 
-![Multi-clauding](public/multiclaude.png)
+Run many agents in parallel and direct work to each:
 
-Run multiple Claude instances and direct work to each:
+1. Click **"+ New"** (or `Alt+N`) to create a new zone
+2. Configure name, directory, agent type, and flags
+3. Select a zone (`1–6`) to target it with prompts
+4. Or use **POST /dispatch** to let the LLM router decide
 
-1. Click **"+ New"** (or `Alt+N`) to spawn a new session
-2. Configure name, directory, and flags (`-r`, `--chrome`, `--dangerously-skip-permissions`)
-3. Click a session or press `1-6` (or `Alt+1-6` in inputs) to select it
-4. Send prompts to whichever Claude you want
+Each session runs in its own tmux, with status tracking (`idle` / `working` / `offline`).
 
-Each session runs in its own tmux, with status tracking (idle/working/offline).
+See [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) for the full orchestration API.
 
-See [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) for the full API and architecture.
+## POST /dispatch — External Agent Integration
+
+Realm accepts tasks from external systems and routes them intelligently:
+
+```text
+IM Platform → Agent → POST /dispatch (Realm)
+                              ↓
+                       LLM decomposes task
+                              ↓
+                   dispatch to matching zones
+                              ↓
+                  zones work asynchronously
+                              ↓
+               POST callbackUrl → Agent → IM
+```
+
+**Request:**
+
+```json
+POST /dispatch
+{ "message": "...", "callbackUrl": "http://agent/callback", "sessionId": "optional" }
+```
+
+**Callback (when all zones complete):**
+
+```json
+POST callbackUrl
+{ "taskGroupId": "abc123", "results": [...], "durationMs": 12000 }
+```
+
+## LLM Provider Configuration
+
+Configure in the Settings UI or in `~/.realm/data/settings.json`:
+
+```json
+{
+  "llmProviders": {
+    "openrouter": {
+      "provider": "custom",
+      "apiKey": "sk-or-v1-...",
+      "model": "stepfun/step-3.5-flash:free",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "maxTokens": 1024
+    }
+  },
+  "defaultProvider": "openrouter"
+}
+```
+
+Supported: `"anthropic"`, `"openai"`, `"custom"` (OpenAI-compatible, e.g. OpenRouter, Ollama).
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `Tab` / `Esc` | Switch focus between Workshop and Feed |
-| `1-6` | Switch to session (extended: QWERTY, ASDFGH, ZXCVBN) |
-| `0` / `` ` `` | All sessions / overview |
-| `Alt+N` | New session |
-| `Alt+R` | Toggle voice input |
-| `F` | Toggle follow mode |
-| `P` | Toggle station panels |
-| `D` | Toggle draw mode |
+| Key          | Action                                |
+|--------------|---------------------------------------|
+| `Tab` / `Esc`| Switch focus: Workshop ↔ Feed         |
+| `1–6`        | Switch to zone (extended: QWERTY row) |
+| `0` / `` ` ``| All zones / overview                  |
+| `Alt+N`      | New zone                              |
+| `Alt+R`      | Toggle voice input                    |
+| `F`          | Toggle follow mode                    |
+| `P`          | Toggle station panels                 |
+| `D`          | Toggle draw mode                      |
 
-**Draw mode:** `1-6` colors, `0` eraser, `Q/E` brush size, `R` 3D stack, `X` clear
+**Draw mode:** `1–6` colors · `0` eraser · `Q/E` brush size · `R` 3D stack · `X` clear
 
-## CLI Options
+## CLI
 
 ```bash
-vibecraft [options]
+realm [options]
+realm setup       # Configure Claude Code hooks
+realm uninstall   # Remove hooks (keeps data)
+realm doctor      # Diagnose issues
 
 Options:
-  --port, -p <port>    WebSocket server port (default: 4003)
-  --help, -h           Show help
-  --version, -v        Show version
+  --port, -p <port>   Server port (default: 4003)
+  --help, -h          Show help
+  --version, -v       Show version
 ```
 
-See [docs/SETUP.md](docs/SETUP.md) for detailed setup guide.
-See [CLAUDE.md](CLAUDE.md) for technical documentation.
+## Data Directory
 
-Website: https://vibecraft.sh
+Realm stores persistent data in `~/.realm/data/`:
+
+| File              | Contents                             |
+|-------------------|--------------------------------------|
+| `events.jsonl`    | Hook events from Claude Code         |
+| `sessions.json`   | Managed zone/session state           |
+| `settings.json`   | LLM providers, IM channels           |
+| `tiles.json`      | Draw mode tile state                 |
+| `groups.json`     | Department groupings                 |
+
+## Setup Guide
+
+See [docs/SETUP.md](docs/SETUP.md) for detailed installation instructions.
+
+## Technical Documentation
+
+See [CLAUDE.md](CLAUDE.md) for architecture and developer reference.
 
 ## License
 

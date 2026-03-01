@@ -1,5 +1,5 @@
 /**
- * SoundManager - Synthesized sound effects for Vibecraft
+ * SoundManager - Synthesized sound effects for Realm
  *
  * Uses Tone.js to generate all sounds programmatically.
  * No audio files needed - pure Web Audio synthesis.

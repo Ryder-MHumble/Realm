@@ -149,7 +149,7 @@ const zh = {
     gridSize: "网格大小",
     gridHint: "从中心算起的六角环数。越大空间越多，可能影响性能。",
     agentConnection: "代理连接",
-    portHint: "Vibecraft 代理运行的端口。更改后需刷新页面。",
+    portHint: "Realm 代理运行的端口。更改后需刷新页面。",
     sessions: "会话",
     refreshSessions: "刷新会话",
     keyboardShortcuts: "快捷键",
@@ -169,11 +169,11 @@ const zh = {
 
   // About modal
   about: {
-    title: "Vibecraft",
-    description: "Vibecraft 是一个 Claude Code 的 3D 可视化应用。",
+    title: "Realm",
+    description: "Realm 是一个 Claude Code 的 3D 可视化应用。",
     subtitle: "实时观察和管理你的 Claude — 现已支持六角网格！",
     privacyNote:
-      "Vibecraft 与你本机上运行的 Claude Code 实例同步。不会将任何文件或代码发送到服务器。",
+      "Realm 与你本机上运行的 Claude Code 实例同步。不会将任何文件或代码发送到服务器。",
     commands: "命令",
     startServer: "启动服务器",
     diagnoseIssues: "诊断问题",
@@ -248,10 +248,10 @@ const zh = {
   // Offline / not connected
   offline: {
     banner: "未连接到本地服务器",
-    title: "Vibecraft!",
-    description: "Vibecraft 是一个用于观察和管理 Claude Code 实例的 3D 应用。",
+    title: "Realm!",
+    description: "Realm 是一个用于观察和管理 Claude Code 实例的 3D 应用。",
     privacyNote:
-      "Vibecraft 与你本机上运行的 CC 实例同步。Vibecraft 只是一个界面 — 不会向服务器发送任何文件或代码。",
+      "Realm 与你本机上运行的 CC 实例同步。Realm 只是一个界面 — 不会向服务器发送任何文件或代码。",
     getStarted: "开始使用：",
     reconnect: "重新连接",
     explore: "探索",
@@ -356,7 +356,7 @@ const zh = {
   tooltip: {
     newZone: "新建区域",
     settings: "设置",
-    aboutVibecraft: "关于 Vibecraft",
+    aboutRealm: "关于 Realm",
     closeFeed: "关闭 (Tab)",
     toggleFeed: "切换活动面板 (Tab)",
   },

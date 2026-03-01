@@ -4,8 +4,8 @@
  * Vibeshop CLI - 3D visualization for Claude Code
  *
  * Usage:
- *   npx vibecraft          # Start the server
- *   npx vibecraft --help   # Show help
+ *   npx realm          # Start the server
+ *   npx realm --help   # Show help
  */
 
 // Check if cwd exists (common issue when running from deleted directory)
@@ -16,7 +16,7 @@ try {
   console.error('This happens when the directory you ran the command from was deleted.')
   console.error('\nFix: cd to a valid directory first:')
   console.error('  cd ~')
-  console.error('  npx vibecraft setup')
+  console.error('  npx realm setup')
   process.exit(1)
 }
 
@@ -61,10 +61,10 @@ function checkHooksConfigured() {
     const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'))
     const hooks = settings.hooks || {}
     const hasPreToolUse = hooks.PreToolUse?.some(h =>
-      h.hooks?.some(hh => hh.command?.includes('vibecraft-hook'))
+      h.hooks?.some(hh => hh.command?.includes('realm-hook'))
     )
     const hasPostToolUse = hooks.PostToolUse?.some(h =>
-      h.hooks?.some(hh => hh.command?.includes('vibecraft-hook'))
+      h.hooks?.some(hh => hh.command?.includes('realm-hook'))
     )
 
     if (hasPreToolUse && hasPostToolUse) {
@@ -95,7 +95,7 @@ function printHealthCheck() {
 
   if (!hooksResult.configured) {
     warnings.push(`  [!] Hooks not configured - events won't be captured
-      Run: npx vibecraft setup
+      Run: npx realm setup
       Then restart Claude Code`)
   }
 
@@ -111,13 +111,13 @@ const args = process.argv.slice(2)
 
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
-vibecraft - 3D visualization for Claude Code
+realm - 3D visualization for Claude Code
 
 Usage:
-  vibecraft [options]
-  vibecraft setup         Configure Claude Code hooks automatically
-  vibecraft uninstall     Remove vibecraft hooks (keeps your data)
-  vibecraft doctor        Diagnose common issues
+  realm [options]
+  realm setup         Configure Claude Code hooks automatically
+  realm uninstall     Remove realm hooks (keeps your data)
+  realm doctor        Diagnose common issues
 
 Options:
   --port, -p <port>    WebSocket server port (default: 4003)
@@ -126,23 +126,23 @@ Options:
   --hook-path          Print path to hook script (for manual setup)
 
 Environment Variables:
-  VIBECRAFT_PORT       WebSocket server port (default: 4003)
-  VIBECRAFT_DEBUG      Enable debug logging (true/false)
+  REALM_PORT       WebSocket server port (default: 4003)
+  REALM_DEBUG      Enable debug logging (true/false)
 
 Setup:
-  1. Run: vibecraft setup
-  2. Start server: vibecraft
+  1. Run: realm setup
+  2. Start server: realm
   3. Open frontend in browser
 
-Website: https://vibecraft.sh
-GitHub:  https://github.com/nearcyan/vibecraft
+Website: https://realm.sh
+GitHub:  https://github.com/nearcyan/realm
 `)
   process.exit(0)
 }
 
 // Hook path command
 if (args.includes('--hook-path')) {
-  console.log(resolve(ROOT, 'hooks/vibecraft-hook.sh'))
+  console.log(resolve(ROOT, 'hooks/realm-hook.sh'))
   process.exit(0)
 }
 
@@ -150,7 +150,7 @@ if (args.includes('--hook-path')) {
 if (args[0] === 'setup') {
   const { writeFileSync, copyFileSync, chmodSync } = await import('fs')
 
-  console.log('Setting up vibecraft hooks...\n')
+  console.log('Setting up realm hooks...\n')
 
   // ==========================================================================
   // Step 1: Find Claude Code settings
@@ -183,17 +183,17 @@ if (args[0] === 'setup') {
   console.log(`Claude settings: ${settingsPath}`)
 
   // ==========================================================================
-  // Step 2: Install hook script to ~/.vibecraft/hooks/
+  // Step 2: Install hook script to ~/.realm/hooks/
   // ==========================================================================
 
-  const vibecraftHooksDir = join(homedir(), '.vibecraft', 'hooks')
-  const installedHookPath = join(vibecraftHooksDir, 'vibecraft-hook.sh')
-  const sourceHookPath = resolve(ROOT, 'hooks/vibecraft-hook.sh')
+  const realmHooksDir = join(homedir(), '.realm', 'hooks')
+  const installedHookPath = join(realmHooksDir, 'realm-hook.sh')
+  const sourceHookPath = resolve(ROOT, 'hooks/realm-hook.sh')
 
   // Ensure hooks directory exists
-  if (!existsSync(vibecraftHooksDir)) {
-    mkdirSync(vibecraftHooksDir, { recursive: true })
-    console.log(`Created ${vibecraftHooksDir}`)
+  if (!existsSync(realmHooksDir)) {
+    mkdirSync(realmHooksDir, { recursive: true })
+    console.log(`Created ${realmHooksDir}`)
   }
 
   // Copy hook script
@@ -216,7 +216,7 @@ if (args[0] === 'setup') {
   // Step 3: Ensure data directory exists
   // ==========================================================================
 
-  const dataDir = join(homedir(), '.vibecraft', 'data')
+  const dataDir = join(homedir(), '.realm', 'data')
   if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true })
     console.log(`Created ${dataDir}`)
@@ -260,12 +260,12 @@ if (args[0] === 'setup') {
   // Initialize hooks object
   settings.hooks = settings.hooks || {}
 
-  // Helper to add/update hooks (removes old vibecraft hooks first)
+  // Helper to add/update hooks (removes old realm hooks first)
   const addHook = (eventType, entry) => {
     settings.hooks[eventType] = settings.hooks[eventType] || []
-    // Remove any existing vibecraft hooks (from any location)
+    // Remove any existing realm hooks (from any location)
     settings.hooks[eventType] = settings.hooks[eventType].filter(h =>
-      !h.hooks?.some(hh => hh.command?.includes('vibecraft-hook'))
+      !h.hooks?.some(hh => hh.command?.includes('realm-hook'))
     )
     // Add new hook
     settings.hooks[eventType].push(entry)
@@ -339,14 +339,14 @@ if (args[0] === 'setup') {
   if (serverRunning) {
     // Update scenario
     console.log('\nTo complete the update:')
-    console.log('  1. Restart vibecraft server (Ctrl+C, then run: npx vibecraft)')
+    console.log('  1. Restart realm server (Ctrl+C, then run: npx realm)')
     console.log('  2. Restart Claude Code (for hook changes to take effect)')
     console.log('  3. Refresh browser\n')
   } else {
     // Fresh install scenario
     console.log('\nNext steps:')
     console.log('  1. Restart Claude Code (required for hooks to take effect)')
-    console.log('  2. Run: npx vibecraft')
+    console.log('  2. Run: npx realm')
     console.log('  3. Open http://localhost:4003 in your browser\n')
   }
 
@@ -357,7 +357,7 @@ if (args[0] === 'setup') {
 if (args[0] === 'uninstall') {
   const { writeFileSync, rmSync } = await import('fs')
 
-  console.log('Uninstalling vibecraft hooks...\n')
+  console.log('Uninstalling realm hooks...\n')
 
   // ==========================================================================
   // Step 1: Find Claude Code settings
@@ -384,7 +384,7 @@ if (args[0] === 'uninstall') {
   console.log(`Claude settings: ${settingsPath}`)
 
   // ==========================================================================
-  // Step 2: Remove vibecraft hooks from settings
+  // Step 2: Remove realm hooks from settings
   // ==========================================================================
 
   let settings
@@ -405,7 +405,7 @@ if (args[0] === 'uninstall') {
   writeFileSync(backupPath, JSON.stringify(settings, null, 2))
   console.log(`Backed up settings: ${backupPath}`)
 
-  // Remove vibecraft hooks from each event type
+  // Remove realm hooks from each event type
   const hookTypes = [
     'PreToolUse', 'PostToolUse', 'Stop', 'SubagentStop',
     'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'Notification'
@@ -417,13 +417,13 @@ if (args[0] === 'uninstall') {
 
     const before = settings.hooks[hookType].length
     settings.hooks[hookType] = settings.hooks[hookType].filter(h =>
-      !h.hooks?.some(hh => hh.command?.includes('vibecraft-hook'))
+      !h.hooks?.some(hh => hh.command?.includes('realm-hook'))
     )
     const after = settings.hooks[hookType].length
 
     if (before !== after) {
       removedCount += (before - after)
-      console.log(`  Removed vibecraft hook from ${hookType}`)
+      console.log(`  Removed realm hook from ${hookType}`)
     }
 
     // Clean up empty arrays
@@ -438,7 +438,7 @@ if (args[0] === 'uninstall') {
   }
 
   if (removedCount === 0) {
-    console.log('No vibecraft hooks found - nothing to remove.')
+    console.log('No realm hooks found - nothing to remove.')
   } else {
     // Write updated settings
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
@@ -449,14 +449,14 @@ if (args[0] === 'uninstall') {
   // Step 3: Remove hook script (but keep data)
   // ==========================================================================
 
-  const hookScript = join(homedir(), '.vibecraft', 'hooks', 'vibecraft-hook.sh')
+  const hookScript = join(homedir(), '.realm', 'hooks', 'realm-hook.sh')
   if (existsSync(hookScript)) {
     rmSync(hookScript)
     console.log(`Removed: ${hookScript}`)
   }
 
   // Remove hooks directory if empty
-  const hooksDir = join(homedir(), '.vibecraft', 'hooks')
+  const hooksDir = join(homedir(), '.realm', 'hooks')
   if (existsSync(hooksDir)) {
     try {
       const { readdirSync } = await import('fs')
@@ -475,10 +475,10 @@ if (args[0] === 'uninstall') {
   console.log('Uninstall complete!')
   console.log('='.repeat(50))
 
-  console.log('\nVibecraft hooks have been removed.')
-  console.log('Your data is preserved in ~/.vibecraft/data/')
+  console.log('\nRealm hooks have been removed.')
+  console.log('Your data is preserved in ~/.realm/data/')
   console.log('\nTo remove all data:')
-  console.log('  rm -rf ~/.vibecraft')
+  console.log('  rm -rf ~/.realm')
   console.log('\nRestart Claude Code for changes to take effect.\n')
 
   process.exit(0)
@@ -487,7 +487,7 @@ if (args[0] === 'uninstall') {
 // Doctor command - diagnose common issues
 if (args[0] === 'doctor') {
   console.log('='.repeat(50))
-  console.log('Vibecraft Doctor - Diagnosing your setup...')
+  console.log('Realm Doctor - Diagnosing your setup...')
   console.log('='.repeat(50))
   console.log()
 
@@ -549,7 +549,7 @@ if (args[0] === 'doctor') {
   // -------------------------------------------------------------------------
   console.log('\n[2/6] Checking hook script...')
 
-  const hookScript = join(homedir(), '.vibecraft', 'hooks', 'vibecraft-hook.sh')
+  const hookScript = join(homedir(), '.realm', 'hooks', 'realm-hook.sh')
   if (existsSync(hookScript)) {
     console.log(`  ✓ Hook script exists: ${hookScript}`)
 
@@ -564,7 +564,7 @@ if (args[0] === 'doctor') {
     }
   } else {
     console.log(`  ✗ Hook script not found: ${hookScript}`)
-    issues.push('Hook script not installed. Run: npx vibecraft setup')
+    issues.push('Hook script not installed. Run: npx realm setup')
   }
 
   // -------------------------------------------------------------------------
@@ -587,7 +587,7 @@ if (args[0] === 'doctor') {
 
   if (!settingsPath) {
     console.log('  ✗ No Claude settings file found')
-    issues.push('Claude settings not found. Run: npx vibecraft setup')
+    issues.push('Claude settings not found. Run: npx realm setup')
   } else {
     console.log(`  ✓ Settings file: ${settingsPath}`)
 
@@ -602,10 +602,10 @@ if (args[0] === 'doctor') {
       let missingHooks = []
 
       for (const hookType of hookTypes) {
-        const hasVibecraft = hooks[hookType]?.some(h =>
-          h.hooks?.some(hh => hh.command?.includes('vibecraft-hook'))
+        const hasRealm = hooks[hookType]?.some(h =>
+          h.hooks?.some(hh => hh.command?.includes('realm-hook'))
         )
-        if (hasVibecraft) {
+        if (hasRealm) {
           configuredHooks.push(hookType)
         } else {
           missingHooks.push(hookType)
@@ -619,8 +619,8 @@ if (args[0] === 'doctor') {
         console.log(`    Missing: ${missingHooks.join(', ')}`)
         warnings.push(`Some hooks not configured: ${missingHooks.join(', ')}`)
       } else {
-        console.log('  ✗ No vibecraft hooks configured')
-        issues.push('Hooks not configured. Run: npx vibecraft setup')
+        console.log('  ✗ No realm hooks configured')
+        issues.push('Hooks not configured. Run: npx realm setup')
       }
     } catch (e) {
       console.log(`  ✗ Failed to parse settings: ${e.message}`)
@@ -633,7 +633,7 @@ if (args[0] === 'doctor') {
   // -------------------------------------------------------------------------
   console.log('\n[4/6] Checking data directory...')
 
-  const dataDir = join(homedir(), '.vibecraft', 'data')
+  const dataDir = join(homedir(), '.realm', 'data')
   if (existsSync(dataDir)) {
     console.log(`  ✓ Data directory exists: ${dataDir}`)
 
@@ -661,7 +661,7 @@ if (args[0] === 'doctor') {
     }
   } else {
     console.log(`  ✗ Data directory not found: ${dataDir}`)
-    issues.push('Data directory not created. Run: npx vibecraft setup')
+    issues.push('Data directory not created. Run: npx realm setup')
   }
 
   // -------------------------------------------------------------------------
@@ -683,7 +683,7 @@ if (args[0] === 'doctor') {
     }
   } catch {
     console.log('  ⚠ Server not running on port 4003')
-    warnings.push('Server not running. Start with: npx vibecraft')
+    warnings.push('Server not running. Start with: npx realm')
   }
 
   // -------------------------------------------------------------------------
@@ -723,7 +723,7 @@ if (args[0] === 'doctor') {
   console.log('\n' + '='.repeat(50))
 
   if (issues.length === 0 && warnings.length === 0) {
-    console.log('✓ All checks passed! Vibecraft should be working.')
+    console.log('✓ All checks passed! Realm should be working.')
   } else {
     if (issues.length > 0) {
       console.log(`✗ ${issues.length} issue(s) found:\n`)
@@ -743,12 +743,12 @@ if (args[0] === 'doctor') {
 
 if (args.includes('--version') || args.includes('-v')) {
   const pkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf-8'))
-  console.log(`vibecraft v${pkg.version}`)
+  console.log(`realm v${pkg.version}`)
   process.exit(0)
 }
 
 // Parse port from args
-let port = process.env.VIBECRAFT_PORT || '4003'
+let port = process.env.REALM_PORT || '4003'
 const portIdx = args.findIndex(a => a === '--port' || a === '-p')
 if (portIdx !== -1 && args[portIdx + 1]) {
   port = args[portIdx + 1]
@@ -764,7 +764,7 @@ if (!existsSync(dataDir)) {
 console.log(`
   ╭─────────────────────────────────────╮
   │                                     │
-  │   vibecraft                          │
+  │   realm                          │
   │   3D visualization for Claude Code  │
   │                                     │
   ╰─────────────────────────────────────╯
@@ -788,7 +788,7 @@ if (existsSync(compiledPath)) {
     cwd: ROOT,
     env: {
       ...process.env,
-      VIBECRAFT_PORT: port,
+      REALM_PORT: port,
     },
     stdio: 'inherit',
   })
@@ -799,7 +799,7 @@ if (existsSync(compiledPath)) {
     cwd: ROOT,
     env: {
       ...process.env,
-      VIBECRAFT_PORT: port,
+      REALM_PORT: port,
     },
     stdio: 'inherit',
   })

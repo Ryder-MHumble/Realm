@@ -1,5 +1,5 @@
 /**
- * Vibecraft Server Logger
+ * Realm Server Logger
  *
  * Provides timestamped logging with optional debug mode.
  * Debug mode is enabled via setDebug() at startup.

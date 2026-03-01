@@ -170,7 +170,7 @@ export async function sendToTmuxSafe(
   }
 
   // For regular prompts, use load-buffer + paste-buffer (safe for arbitrary text)
-  const tempFile = `/tmp/vibecraft-prompt-${Date.now()}-${randomBytes(16).toString("hex")}.txt`;
+  const tempFile = `/tmp/realm-prompt-${Date.now()}-${randomBytes(16).toString("hex")}.txt`;
   writeFileSync(tempFile, text);
 
   try {

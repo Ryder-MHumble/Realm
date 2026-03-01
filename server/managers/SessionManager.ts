@@ -127,7 +127,7 @@ export class SessionManager {
       const id = randomUUID();
       this.sessionCounter++;
       const name = options.name || `Claude ${this.sessionCounter}`;
-      const tmuxSession = `vibecraft-${shortId()}`;
+      const tmuxSession = `realm-${shortId()}`;
 
       let cwd: string;
       try {

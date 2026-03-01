@@ -1,5 +1,5 @@
 /**
- * EventBus - Decoupled event handling for Vibecraft
+ * EventBus - Decoupled event handling for Realm
  *
  * Allows modules to subscribe to events they care about without
  * coupling everything in one giant switch statement.

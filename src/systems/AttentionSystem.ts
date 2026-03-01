@@ -130,9 +130,9 @@ export class AttentionSystem {
   /** Update browser tab title with attention count */
   private updateTabTitle(): void {
     if (this.queue.length > 0) {
-      document.title = `(${this.queue.length}) Vibecraft`
+      document.title = `(${this.queue.length}) Realm`
     } else {
-      document.title = 'Vibecraft'
+      document.title = 'Realm'
     }
   }
 
@@ -148,10 +148,10 @@ export class AttentionSystem {
     if (!('Notification' in window)) return
 
     if (Notification.permission === 'granted') {
-      new Notification('Vibecraft', {
+      new Notification('Realm', {
         body: `${sessionName} needs attention`,
         icon: '/favicon.ico',
-        tag: 'vibecraft-attention', // Prevents duplicate notifications
+        tag: 'realm-attention', // Prevents duplicate notifications
       })
     } else if (Notification.permission !== 'denied') {
       Notification.requestPermission()

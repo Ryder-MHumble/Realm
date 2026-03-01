@@ -1,5 +1,5 @@
 /**
- * Vibecraft WebSocket Server — Orchestrator
+ * Realm WebSocket Server — Orchestrator
  *
  * Slim entrypoint that instantiates all managers, wires their callbacks,
  * and starts the HTTP + WebSocket server.
@@ -37,6 +37,7 @@ import { ClaudeCodeAdapter } from "./agents/ClaudeCodeAdapter.js";
 import { NanoClawAdapter } from "./agents/NanoClawAdapter.js";
 import { ZeroClawAdapter } from "./agents/ZeroClawAdapter.js";
 import { OpenClawAdapter } from "./agents/OpenClawAdapter.js";
+
 // API router
 import { routeRequest, type ServerContext } from "./api/router.js";
 
@@ -53,7 +54,7 @@ function main() {
   setDebug(config.debug);
   initTmuxUtils(config.execOptions);
 
-  log("Starting Vibecraft server...");
+  log("Starting Realm server...");
 
   // ---- Create agent registry ----
   const agentRegistry = new AgentRegistry();
@@ -101,6 +102,50 @@ function main() {
   zeroAdapter.setSettingsProvider(settingsProvider);
   openAdapter.setSettingsProvider(settingsProvider);
 
+<<<<<<< HEAD
+=======
+  // ---- Create notification manager (bridges created on start) ----
+  const logN = (msg: string) => log(`[Notification] ${msg}`);
+  const notificationManager = new NotificationManager(
+    () => settingsManager.getSettings(),
+    (channel) => {
+      switch (channel.platform) {
+        case "feishu":
+          return new FeishuAdapter(
+            {
+              webhookUrl: channel.config.webhookUrl || "",
+              appId: channel.config.appId,
+              appSecret: channel.config.appSecret,
+            },
+            logN,
+          );
+        case "dingtalk":
+          return new DingTalkAdapter(
+            {
+              webhookUrl: channel.config.webhookUrl || "",
+              secret: channel.config.secret,
+              appKey: channel.config.appKey,
+              appSecret: channel.config.appSecret,
+            },
+            logN,
+          );
+        case "telegram":
+          return new TelegramAdapter(
+            {
+              botToken: channel.config.botToken || "",
+              chatId: channel.config.chatId || "",
+            },
+            logN,
+          );
+        default:
+          logN(`Unknown notification platform: ${channel.platform}`);
+          return null;
+      }
+    },
+    logN,
+  );
+
+>>>>>>> 5f497a8 (feat: Iteration content)
   // ---- Create automation managers ----
   const autoCompactManager = new AutoCompactManager(
     settingsManager.getAutoCompact() || undefined,
@@ -108,6 +153,16 @@ function main() {
   const autoContinueManager = new AutoContinueManager(
     settingsManager.getAutoContinue() || undefined,
   );
+
+  // ---- Create task orchestrator (IM → sessions dispatcher) ----
+  const taskOrchestrator = new TaskOrchestrator({
+    getSettings: () => settingsManager.getSettings(),
+    getSessions: () => sessionManager.getSessions(),
+    getProjects: () => projectsManager.getProjects(),
+    createSession: (options) => sessionManager.createSession(options),
+    sendPrompt: (id, prompt) => sessionManager.sendPromptToSession(id, prompt),
+    getBridge: (name) => notificationManager.getBridges().get(name),
+  });
 
   // ---- Wire broadcast callbacks ----
   const broadcast = wsManager.broadcast.bind(wsManager);
@@ -135,10 +190,43 @@ function main() {
     permissionManager.clearSession(id),
   );
 
+<<<<<<< HEAD
   // Events → Sessions + Auto-Continue
   eventProcessor.setEventHandler((event) => {
     sessionManager.handleEvent(event);
     autoContinueManager.handleEvent(event);
+=======
+  // Events → Sessions + Notifications + Auto-Continue + Orchestrator
+  eventProcessor.setEventHandler((event) => {
+    sessionManager.handleEvent(event);
+    autoContinueManager.handleEvent(event);
+
+    if (event.type === "stop") {
+      // Resolve managed session from Claude Code session ID or direct managed ID
+      const session =
+        sessionManager.findManagedSession(event.sessionId) ??
+        sessionManager.getSession(event.sessionId);
+
+      if (session) {
+        const stopEvent = event as import("../shared/types.js").StopEvent;
+
+        // Direct per-session notification (existing behaviour)
+        if (notificationManager.hasActiveChannels()) {
+          notificationManager.notifySession(session, {
+            sessionName: session.name,
+            status: "completed",
+            response: stopEvent.response,
+          });
+        }
+
+        // Orchestrated task completion (only fires when session was dispatched by orchestrator)
+        taskOrchestrator.handleSessionStop(
+          session.id,
+          stopEvent.response ?? "",
+        );
+      }
+    }
+>>>>>>> 5f497a8 (feat: Iteration content)
   });
 
   // WebSocket → History + Permissions
@@ -207,6 +295,42 @@ function main() {
   groupsManager.load();
   settingsManager.load();
 
+<<<<<<< HEAD
+=======
+  // ---- Start notification channels + wire inbound to orchestrator ----
+  notificationManager
+    .start()
+    .then(() => {
+      for (const [bridgeName, bridge] of notificationManager.getBridges()) {
+        bridge.onMessage((msg) => {
+          taskOrchestrator
+            .handleIncomingMessage(msg, bridgeName)
+            .catch((e) => log(`[Orchestrator] Error handling message: ${e}`));
+        });
+      }
+      log(
+        `[Orchestrator] Wired ${notificationManager.getBridges().size} bridge(s) for inbound messages`,
+      );
+    })
+    .catch((e) => log(`Notification start error: ${e}`));
+
+  // Reinitialize notifications when settings change, then re-wire inbound handlers
+  settingsManager.onChange(() => {
+    notificationManager
+      .reinitialize()
+      .then(() => {
+        for (const [bridgeName, bridge] of notificationManager.getBridges()) {
+          bridge.onMessage((msg) => {
+            taskOrchestrator
+              .handleIncomingMessage(msg, bridgeName)
+              .catch((e) => log(`[Orchestrator] Error handling message: ${e}`));
+          });
+        }
+      })
+      .catch((e) => log(`Notification reinit error: ${e}`));
+  });
+
+>>>>>>> 5f497a8 (feat: Iteration content)
   // ---- Start git status tracking ----
   gitStatusManager.setUpdateHandler(({ sessionId, status }) => {
     const session = sessionManager.getSession(sessionId);
@@ -237,6 +361,7 @@ function main() {
     settingsManager,
     autoCompactManager,
     autoContinueManager,
+    taskOrchestrator,
   };
 
   // ---- Create HTTP server ----
@@ -303,7 +428,7 @@ function main() {
   httpServer.listen(config.port, () => {
     log(`Server running on port ${config.port}`);
     log(``);
-    log(`Open https://vibecraft.sh to view your workshop`);
+    log(`Open https://realm.sh to view your workshop`);
     log(``);
     log(`Local API endpoints:`);
     log(`  WebSocket: ws://localhost:${config.port}`);
@@ -340,8 +465,8 @@ function main() {
 
 /**
  * Clean up stale data on server startup:
- * 1. Kill orphaned vibecraft-* tmux sessions
- * 2. Remove stale /tmp/vibecraft-prompt-* temp files
+ * 1. Kill orphaned realm-* tmux sessions
+ * 2. Remove stale /tmp/realm-prompt-* temp files
  *
  * Note: events.jsonl pruning is handled by EventProcessor.pruneEventsFile()
  */
@@ -350,7 +475,7 @@ function cleanupOnStartup(
   _maxEvents: number,
   execPath: string,
 ): void {
-  // Kill orphaned vibecraft-* tmux sessions (skip vibecraft-dev)
+  // Kill orphaned realm-* tmux sessions (skip realm-dev)
   execFile(
     "tmux",
     ["list-sessions", "-F", "#{session_name}"],
@@ -361,7 +486,7 @@ function cleanupOnStartup(
         .trim()
         .split("\n")
         .filter(
-          (name) => name.startsWith("vibecraft-") && name !== "vibecraft-dev",
+          (name) => name.startsWith("realm-") && name !== "realm-dev",
         );
       if (orphans.length === 0) return;
       log(
@@ -373,10 +498,10 @@ function cleanupOnStartup(
     },
   );
 
-  // Clean stale /tmp/vibecraft-prompt-* files
+  // Clean stale /tmp/realm-prompt-* files
   try {
     const tmpFiles = readdirSync("/tmp").filter((f) =>
-      f.startsWith("vibecraft-prompt-"),
+      f.startsWith("realm-prompt-"),
     );
     for (const f of tmpFiles) {
       try {

@@ -4,7 +4,7 @@
 
 ## 产品定位
 
-Realm 基于 Vibecraft 迭代，将 3D 可视化能力从「观察一个 Claude Code」扩展为「管理一个 AI 团队」。面向 2-10 人的小型创业团队，用虚拟办公室的产品形态让用户像老板一样管理多个 AI 员工。
+Realm 基于 Realm 迭代，将 3D 可视化能力从「观察一个 Claude Code」扩展为「管理一个 AI 团队」。面向 2-10 人的小型创业团队，用虚拟办公室的产品形态让用户像老板一样管理多个 AI 员工。
 
 **核心赌注**：AI agent 的管理界面比 agent 能力本身更具产品化价值。
 
@@ -15,7 +15,7 @@ Realm 基于 Vibecraft 迭代，将 3D 可视化能力从「观察一个 Claude 
 | 产品名 | Realm |
 | Slogan | "Your AI team, always working." |
 | 目标用户 | 小型创业团队 (2-10 人) |
-| 技术路径 | 基于 Vibecraft 迭代 |
+| 技术路径 | 基于 Realm 迭代 |
 | 3D 风格 | 虚拟办公室 |
 | 商业化 | 先做爆款 demo 视频 → waitlist → 内测 → 公开发布 |
 | 汇报系统 | IM 频道（日常交互）+ 3D 晨会（仪式感 + demo 亮点）|
@@ -32,10 +32,10 @@ Realm 基于 Vibecraft 迭代，将 3D 可视化能力从「观察一个 Claude 
 
 ## 技术架构
 
-### 从 Vibecraft 到 Realm 的演进
+### 从 Realm 到 Realm 的演进
 
 ```
-Vibecraft (当前):
+Realm (当前):
   Claude Code → Hook → WS Server (本地) → Browser 3D
 
 Realm (目标):
@@ -50,7 +50,7 @@ Realm (目标):
        └── Progress DB (PostgreSQL)
 ```
 
-### Vibecraft 组件复用
+### Realm 组件复用
 
 **直接复用**：
 - `src/scene/WorkshopScene.ts` — 3D 场景基础

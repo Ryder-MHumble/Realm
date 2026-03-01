@@ -1,5 +1,5 @@
 /**
- * Lightweight i18n engine for Vibecraft.
+ * Lightweight i18n engine for Realm.
  *
  * - Nested translation objects flattened to dot-notation keys
  * - `t('feed.thinking')` lookup with `{param}` interpolation
@@ -15,7 +15,7 @@ export type Locale = "en" | "zh";
 type NestedDict = { [key: string]: string | NestedDict };
 type FlatDict = Record<string, string>;
 
-const STORAGE_KEY = "vibecraft-locale";
+const STORAGE_KEY = "realm-locale";
 
 let currentLocale: Locale = "en";
 let flatDict: FlatDict = {};

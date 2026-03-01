@@ -1,10 +1,10 @@
 # 音效系统
 
-本文档介绍 Vibecraft 的音频架构，包括合成音效和空间音频定位。
+本文档介绍 Realm 的音频架构，包括合成音效和空间音频定位。
 
 ## 概述
 
-Vibecraft 使用 **Tone.js** 进行程序化音效合成。无需音频文件——所有音效通过 Web Audio API 实时生成。
+Realm 使用 **Tone.js** 进行程序化音效合成。无需音频文件——所有音效通过 Web Audio API 实时生成。
 
 ```
 事件（工具使用、停止等）
@@ -189,7 +189,7 @@ setInterval(() => {
 ### 设置
 
 - **开关**：设置弹窗中的"Spatial Audio"复选框
-- **存储**：`localStorage.getItem('vibecraft-spatial-audio')`
+- **存储**：`localStorage.getItem('realm-spatial-audio')`
 - **默认**：启用
 - **禁用时**：所有音效以居中方式满音量播放
 

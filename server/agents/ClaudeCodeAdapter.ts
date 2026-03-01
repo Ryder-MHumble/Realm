@@ -2,7 +2,7 @@
  * ClaudeCodeAdapter — Agent adapter for Claude Code CLI sessions.
  *
  * Manages Claude Code instances via tmux sessions. Events are captured
- * by the vibecraft-hook.sh script and flow through events.jsonl.
+ * by the realm-hook.sh script and flow through events.jsonl.
  */
 
 import { execFile } from "child_process";
@@ -88,7 +88,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     const id = randomUUID();
     this.sessionCounter++;
     const name = config.name || `Claude ${this.sessionCounter}`;
-    const tmuxSession = `vibecraft-${shortId()}`;
+    const tmuxSession = `realm-${shortId()}`;
 
     const cwd = validateDirectoryPath(config.cwd || process.cwd());
 
@@ -269,7 +269,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       }
 
       // Regular prompts: use load-buffer + paste-buffer
-      const tempFile = `/tmp/vibecraft-prompt-${Date.now()}-${randomBytes(16).toString("hex")}.txt`;
+      const tempFile = `/tmp/realm-prompt-${Date.now()}-${randomBytes(16).toString("hex")}.txt`;
       writeFileSync(tempFile, text);
 
       try {

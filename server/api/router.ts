@@ -19,6 +19,7 @@ import type { AgentRegistry } from "../agents/AgentRegistry.js";
 import type { SettingsManager } from "../managers/SettingsManager.js";
 import type { AutoCompactManager } from "../managers/AutoCompactManager.js";
 import type { AutoContinueManager } from "../managers/AutoContinueManager.js";
+import type { TaskOrchestrator } from "../bot/TaskOrchestrator.js";
 import { isOriginAllowed } from "../config.js";
 
 import { handleEventRoutes } from "./eventsHandler.js";
@@ -30,6 +31,7 @@ import { handlePromptRoutes } from "./promptHandler.js";
 import { handleAgentRoutes } from "./agentsHandler.js";
 import { handleUploadRoutes } from "./uploadHandler.js";
 import { handleSettingsRoutes } from "./settingsHandler.js";
+import { handleDispatchRoutes } from "./dispatchHandler.js";
 import { serveStaticFile } from "./staticHandler.js";
 
 /** All dependencies available to route handlers */
@@ -47,6 +49,7 @@ export interface ServerContext {
   settingsManager: SettingsManager;
   autoCompactManager: AutoCompactManager | null;
   autoContinueManager: AutoContinueManager | null;
+  taskOrchestrator: TaskOrchestrator | null;
 }
 
 /** Main HTTP request handler */
@@ -79,6 +82,7 @@ export function routeRequest(
   }
 
   // Try each handler in order
+  if (handleDispatchRoutes(req, res, ctx)) return;
   if (handleEventRoutes(req, res, ctx)) return;
   if (handlePromptRoutes(req, res, ctx)) return;
   if (handleSessionRoutes(req, res, ctx)) return;

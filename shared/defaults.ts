@@ -1,5 +1,5 @@
 /**
- * Vibecraft - Central Configuration Defaults
+ * Realm - Central Configuration Defaults
  *
  * Single source of truth for default values.
  * Environment variables override these defaults.
@@ -14,17 +14,17 @@ export const DEFAULTS = {
 
   /**
    * Events file path.
-   * Uses ~/.vibecraft/ to ensure consistent location regardless of
-   * how vibecraft was installed (npx, global npm, local dev).
+   * Uses ~/.realm/ to ensure consistent location regardless of
+   * how realm was installed (npx, global npm, local dev).
    * The ~ is expanded by the server at runtime.
    */
-  EVENTS_FILE: '~/.vibecraft/data/events.jsonl',
+  EVENTS_FILE: '~/.realm/data/events.jsonl',
 
   /**
    * Sessions file path.
-   * Uses ~/.vibecraft/ for consistency across installations.
+   * Uses ~/.realm/ for consistency across installations.
    */
-  SESSIONS_FILE: '~/.vibecraft/data/sessions.json',
+  SESSIONS_FILE: '~/.realm/data/sessions.json',
 
   /** Max events to keep in memory */
   MAX_EVENTS: 1000,

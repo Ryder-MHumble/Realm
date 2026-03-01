@@ -151,7 +151,7 @@ const en = {
       "Number of hex rings from center. Larger = more space, may impact performance.",
     agentConnection: "Agent Connection",
     portHint:
-      "Port where the Vibecraft agent is running. Changes require refresh.",
+      "Port where the Realm agent is running. Changes require refresh.",
     sessions: "Sessions",
     refreshSessions: "Refresh Sessions",
     keyboardShortcuts: "Keyboard Shortcuts",
@@ -172,12 +172,12 @@ const en = {
 
   // About modal
   about: {
-    title: "Vibecraft",
-    description: "Vibecraft is a 3D visualization app for Claude Code.",
+    title: "Realm",
+    description: "Realm is a 3D visualization app for Claude Code.",
     subtitle:
       "Watch and manage your claudes in real-time - now featuring hexagonal grids!",
     privacyNote:
-      "Vibecraft syncs with claude code instances running on your own machine. No files or code are sent to the web server.",
+      "Realm syncs with claude code instances running on your own machine. No files or code are sent to the web server.",
     commands: "Commands",
     startServer: "Start server",
     diagnoseIssues: "Diagnose issues",
@@ -253,11 +253,11 @@ const en = {
   // Offline / not connected
   offline: {
     banner: "Not connected to local server",
-    title: "Vibecraft!",
+    title: "Realm!",
     description:
-      "Vibecraft is a 3D app to watch and manage Claude Code instances.",
+      "Realm is a 3D app to watch and manage Claude Code instances.",
     privacyNote:
-      "Vibecraft syncs with CC instances running on your local machine. Vibecraft is an interface - no files or code are sent to this server.",
+      "Realm syncs with CC instances running on your local machine. Realm is an interface - no files or code are sent to this server.",
     getStarted: "Get started:",
     reconnect: "Reconnect",
     explore: "Explore",
@@ -362,7 +362,7 @@ const en = {
   tooltip: {
     newZone: "New Zone",
     settings: "Settings",
-    aboutVibecraft: "About Vibecraft",
+    aboutRealm: "About Realm",
     closeFeed: "Close (Tab)",
     toggleFeed: "Toggle Activity Feed (Tab)",
   },

@@ -2,7 +2,7 @@
  * AgentAdapter — Platform-agnostic interface for AI agent lifecycle management.
  *
  * Each agent framework (Claude Code, NanoClaw, ZeroClaw, OpenClaw) implements
- * this interface to provide unified session management through Vibecraft.
+ * this interface to provide unified session management through Realm.
  */
 
 import type {

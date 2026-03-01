@@ -1,5 +1,5 @@
 /**
- * Vibecraft Event Types
+ * Realm Event Types
  *
  * These types define the contract between:
  * - Hook scripts (produce events)
@@ -768,7 +768,7 @@ export interface UpdateSettingsRequest {
 // Configuration
 // ============================================================================
 
-export interface VibecraftConfig {
+export interface RealmConfig {
   /** WebSocket server port */
   serverPort: number;
   /** Path to events JSONL file */
@@ -779,7 +779,7 @@ export interface VibecraftConfig {
   debug: boolean;
 }
 
-export const DEFAULT_CONFIG: VibecraftConfig = {
+export const DEFAULT_CONFIG: RealmConfig = {
   serverPort: 4003,
   eventsFile: "./data/events.jsonl",
   maxEventsInMemory: 1000,

@@ -1,6 +1,6 @@
 {
   "latest": "0.1.15",
   "minSupported": "0.1.0",
-  "releaseUrl": "https://github.com/nearcyan/vibecraft/releases",
-  "updateCommand": "npx vibecraft@latest setup"
+  "releaseUrl": "https://github.com/nearcyan/realm/releases",
+  "updateCommand": "npx realm@latest setup"
 }

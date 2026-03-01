@@ -42,7 +42,7 @@ function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
 
 // ---- Voice language preference (independent of UI locale) ----
 
-const VOICE_LANG_KEY = "vibecraft-voice-lang";
+const VOICE_LANG_KEY = "realm-voice-lang";
 
 /** Get saved voice recognition language, defaults to current i18n locale */
 function getVoiceLang(): VoiceLang {
