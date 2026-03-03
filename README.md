@@ -3,17 +3,17 @@
   <img src="public/Realm-Logo.png" alt="Real-Logo" width="600" />
 </div>
 
-> AI agent orchestration & 3D visualization — watch and manage multiple Claude Code instances in a living, breathing world.
+> **See your AI agents work.** Realm visualizes Claude Code activity in real-time 3D, orchestrates multi-agent tasks, and connects external systems via REST API.
 
-Realm turns your AI coding sessions into something you can *see*. Every tool call animates a character moving through a 3D workshop. Every session gets its own hexagonal zone. Multiple agents collaborate in parallel, and an orchestration engine decomposes tasks and routes them automatically.
+Every tool call animates a character moving through a living workshop. Each session gets its own hexagonal zone. Tasks decompose automatically and route to the right agent. Watch it all unfold in real-time.
 
 ## What Realm Does
 
-**Visualize** — Claude's tool calls drive real-time 3D animations. Reading files? The character walks to the bookshelf. Running bash? The terminal glows. Writing code? Pencil and ink pot.
+**Visualize** — Every tool call (read, write, bash, grep) triggers a context-aware animation. Reading files? Walk to the bookshelf. Running tests? The terminal glows. Committing code? Celebrate. Errors? Shake your head.
 
-**Orchestrate** — Run multiple Claude Code instances (or Claw agents) simultaneously. An LLM-powered task router decomposes natural language requests and dispatches them to the right session automatically.
+**Orchestrate** — Dispatch tasks to multiple Claude Code instances or Claw agents in parallel. An LLM-powered router decomposes natural language into sub-tasks and routes each to the best-fit session automatically.
 
-**Connect** — External agents (OpenClaw, NanoClaw, ZeroClaw) and IM platforms (DingTalk, Feishu, Telegram) can push tasks via REST API. Results are collected and returned via webhook callback.
+**Connect** — External systems (OpenClaw, DingTalk, Feishu, Telegram) push tasks via REST API. Realm routes them, collects results, and fires webhooks when complete.
 
 ![Realm-Slogan](public/Realm-Slogan.png)
 
@@ -61,31 +61,31 @@ cd Realm && npm install && npm run dev
 
 ## Features
 
-- **Multi-agent zones** — Each Claude session gets a hex zone with its own character and workstations
-- **Real-time 3D animations** — Context-aware: celebrates commits, shakes head on errors
+- **Multi-agent zones** — Each session gets a hex zone with its own character and workstations
+- **Real-time 3D animations** — Context-aware reactions: celebrates commits, shakes on errors
 - **Subagent visualization** — Mini-characters spawn at the Portal for parallel sub-tasks
 - **Spatial audio** — Synthesized sounds positioned in 3D space (Tone.js, no audio files)
-- **Activity feed** — Live stream of tool calls, responses, and thinking bubbles
+- **Activity feed** — Live stream of tool calls, responses, and thinking
 - **Voice input** — Speak prompts with real-time transcription (Deepgram API key required)
-- **Draw mode** — Paint hex tiles with colors, 3D stacking, and text labels (`D`)
-- **Department grouping** — Drag zones together into departments (Civ-6-style groups)
-- **Station panels** — Per-workstation history (`P`)
-- **Attention system** — Zones pulse when a session needs input or finishes
-- **Auto-compact / Auto-continue** — Keeps long-running sessions alive automatically
-- **IM integration** — Receive tasks from DingTalk, Feishu, or Telegram; results sent back automatically
+- **Draw mode** — Paint hex tiles with colors, 3D stacking, and labels
+- **Department grouping** — Organize zones into departments (Civ-6-style)
+- **Station panels** — Per-workstation history and details
+- **Attention system** — Zones pulse when waiting for input or finishing
+- **Auto-compact / Auto-continue** — Keeps long-running sessions alive
+- **IM integration** — Receive tasks from DingTalk, Feishu, Telegram; send results back
 
 ## Multi-Agent Orchestration
 
-Run many agents in parallel and direct work to each:
+Dispatch tasks to multiple agents and watch them work in parallel:
 
-1. Click **"+ New"** (or `Alt+N`) to create a new zone
+1. Click **"+ New"** (or `Alt+N`) to create a zone
 2. Configure name, directory, agent type, and flags
 3. Select a zone (`1–6`) to target it with prompts
 4. Or use **POST /dispatch** to let the LLM router decide
 
-Each session runs in its own tmux, with status tracking (`idle` / `working` / `offline`).
+Each session runs in its own tmux with status tracking (`idle` / `working` / `offline`).
 
-See [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) for the full orchestration API.
+See [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md) for the full API.
 
 ## POST /dispatch — External Agent Integration
 

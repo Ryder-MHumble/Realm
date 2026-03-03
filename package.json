@@ -1,7 +1,7 @@
 {
   "name": "realm",
   "version": "0.1.0",
-  "description": "AI agent orchestration & 3D visualization platform — watch and manage multiple Claude Code instances in a living 3D world",
+  "description": "See your AI agents work. Real-time 3D visualization of Claude Code activity, multi-agent orchestration, and REST API integration for external systems.",
   "author": "Elysian Labs",
   "license": "MIT",
   "keywords": [
