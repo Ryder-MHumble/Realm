@@ -7,9 +7,6 @@ node_modules/
 # Build output
 dist/
 
-# Data files (generated at runtime)
-data/
-
 # Environment
 .env
 .env.local
