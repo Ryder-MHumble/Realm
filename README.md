@@ -1,5 +1,8 @@
 # Realm
-![Realm](public/realm.png)
+<div align="center">
+  <img src="public/Realm-Logo.png" alt="Real-Logo" width="600" />
+</div>
+
 > AI agent orchestration & 3D visualization — watch and manage multiple Claude Code instances in a living, breathing world.
 
 Realm turns your AI coding sessions into something you can *see*. Every tool call animates a character moving through a 3D workshop. Every session gets its own hexagonal zone. Multiple agents collaborate in parallel, and an orchestration engine decomposes tasks and routes them automatically.
@@ -12,7 +15,7 @@ Realm turns your AI coding sessions into something you can *see*. Every tool cal
 
 **Connect** — External agents (OpenClaw, NanoClaw, ZeroClaw) and IM platforms (DingTalk, Feishu, Telegram) can push tasks via REST API. Results are collected and returned via webhook callback.
 
-![Multi-clauding](public/multiclaude.png)
+![Realm-Slogan](public/Realm-Slogan.png)
 
 ## Requirements
 
