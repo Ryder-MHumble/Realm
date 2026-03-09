@@ -127,14 +127,18 @@ export class TaskOrchestrator {
       subTasks = await this.decomposeTask(msg.text);
     } catch (err) {
       log(`[Orchestrator] LLM decompose failed: ${err}`);
-      bridge?.sendText(`❌ 无法解析任务：${err}`).catch(() => {});
+      if (bridge?.sendText) {
+        bridge.sendText(`❌ 无法解析任务：${err}`).catch(() => {});
+      }
       return;
     }
 
     if (subTasks.length === 0) {
-      bridge
-        ?.sendText("❓ 未能识别出任何可执行的任务，请重新描述。")
-        .catch(() => {});
+      if (bridge?.sendText) {
+        bridge
+          .sendText("❓ 未能识别出任何可执行的任务，请重新描述。")
+          .catch(() => {});
+      }
       return;
     }
 
@@ -160,9 +164,11 @@ export class TaskOrchestrator {
         );
         // Decrement total so we don't wait forever for a task that never started
         group.totalTasks = Math.max(0, group.totalTasks - 1);
-        bridge
-          ?.sendText(`⚠️ 无法派发任务到 "${subtask.sessionHint}"：${err}`)
-          .catch(() => {});
+        if (bridge?.sendText) {
+          bridge
+            .sendText(`⚠️ 无法派发任务到 "${subtask.sessionHint}"：${err}`)
+            .catch(() => {});
+        }
       }
     }
 
@@ -316,14 +322,16 @@ export class TaskOrchestrator {
 
     // Send acknowledgement immediately (IM path)
     if (group.bridgeName) {
-      this.deps
-        .getBridge(group.bridgeName)
-        ?.sendStatusUpdate(
-          session.name,
-          "正在执行任务",
-          subtask.prompt.slice(0, 60),
-        )
-        .catch(() => {});
+      const groupBridge = this.deps.getBridge(group.bridgeName);
+      if (groupBridge?.sendStatusUpdate) {
+        groupBridge
+          .sendStatusUpdate(
+            session.name,
+            "正在执行任务",
+            subtask.prompt.slice(0, 60),
+          )
+          .catch(() => {});
+      }
     }
 
     // Send prompt to session
@@ -396,7 +404,7 @@ export class TaskOrchestrator {
         originalPrompt: group.originalMessage,
         duration: durationMs,
       };
-      await bridge.sendTaskCompletion(msg);
+      await bridge.sendTaskCompletion(group.chatId!, msg);
     } else {
       const lines = group.results
         .map((r) => {
@@ -409,7 +417,9 @@ export class TaskOrchestrator {
         })
         .join("\n\n---\n\n");
       const summary = `✅ 全部 ${group.totalTasks} 个任务已完成（${durationStr}）\n\n**原始请求：** ${group.originalMessage.slice(0, 100)}\n\n${lines}`;
-      await bridge.sendText(summary);
+      if (bridge.sendText) {
+        await bridge.sendText(summary);
+      }
     }
   }
 

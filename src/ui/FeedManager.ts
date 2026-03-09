@@ -589,11 +589,12 @@ export class FeedManager {
           !this.toolChainCollapsed
         ) {
           this.toolChainCollapsed = true;
-          const summary = document.createElement("div");
-          summary.className = "tool-chain-summary";
-          summary.innerHTML = `<span>▶</span> ${t("feed.moreTools", { n: this.toolChainItemCount - TOOL_CHAIN_COLLAPSE_THRESHOLD })}`;
 
-          // Hide items and inline text beyond threshold
+          // Create hidden container for overflow items
+          const hiddenContainer = document.createElement("div");
+          hiddenContainer.className = "tool-chain-hidden";
+
+          // Move items beyond threshold to hidden container
           const children = chain.querySelectorAll(
             ".tool-chain-item, .tool-chain-text",
           );
@@ -603,39 +604,42 @@ export class FeedManager {
               toolCount++;
             }
             if (toolCount > TOOL_CHAIN_COLLAPSE_THRESHOLD) {
+              hiddenContainer.appendChild(child.cloneNode(true));
               (child as HTMLElement).style.display = "none";
             }
           }
 
-          chain.appendChild(summary);
+          // Create summary button
+          const summary = document.createElement("div");
+          summary.className = "tool-chain-summary";
+          const moreCount =
+            this.toolChainItemCount - TOOL_CHAIN_COLLAPSE_THRESHOLD;
+          summary.innerHTML = `<span>▶</span><span>${t("feed.moreTools", { n: moreCount })}</span><span class="chain-count">${moreCount}</span>`;
 
-          summary.addEventListener("click", () => {
-            chain
-              .querySelectorAll(".tool-chain-item, .tool-chain-text")
-              .forEach((el) => {
-                (el as HTMLElement).style.display = "";
-              });
-            summary.remove();
+          chain.appendChild(summary);
+          chain.appendChild(hiddenContainer);
+
+          summary.addEventListener("click", (e) => {
+            e.stopPropagation();
+            hiddenContainer.classList.toggle("expanded");
+            summary.querySelector("span:first-child")!.style.transform =
+              hiddenContainer.classList.contains("expanded")
+                ? "rotate(90deg)"
+                : "rotate(0deg)";
           });
         }
 
         if (this.toolChainCollapsed) {
           compactItem.style.display = "none";
-          chain.insertBefore(
-            compactItem,
-            chain.querySelector(".tool-chain-summary"),
-          );
+          const hiddenContainer = chain.querySelector(".tool-chain-hidden");
+          if (hiddenContainer) {
+            hiddenContainer.appendChild(compactItem.cloneNode(true));
+          }
           const summary = chain.querySelector(".tool-chain-summary");
           if (summary) {
-            summary.innerHTML = `<span>▶</span> ${t("feed.moreTools", { n: this.toolChainItemCount - TOOL_CHAIN_COLLAPSE_THRESHOLD })}`;
-            summary.addEventListener("click", () => {
-              chain
-                .querySelectorAll(".tool-chain-item, .tool-chain-text")
-                .forEach((el) => {
-                  (el as HTMLElement).style.display = "";
-                });
-              summary.remove();
-            });
+            const moreCount =
+              this.toolChainItemCount - TOOL_CHAIN_COLLAPSE_THRESHOLD;
+            summary.innerHTML = `<span>▶</span><span>${t("feed.moreTools", { n: moreCount })}</span><span class="chain-count">${moreCount}</span>`;
           }
         } else {
           chain.appendChild(compactItem);

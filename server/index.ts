@@ -41,6 +41,9 @@ import { OpenClawAdapter } from "./agents/OpenClawAdapter.js";
 // API router
 import { routeRequest, type ServerContext } from "./api/router.js";
 
+// Bot
+import { TaskOrchestrator } from "./bot/TaskOrchestrator.js";
+
 // Types
 import type { ClientMessage } from "../shared/types.js";
 
@@ -102,50 +105,6 @@ function main() {
   zeroAdapter.setSettingsProvider(settingsProvider);
   openAdapter.setSettingsProvider(settingsProvider);
 
-<<<<<<< HEAD
-=======
-  // ---- Create notification manager (bridges created on start) ----
-  const logN = (msg: string) => log(`[Notification] ${msg}`);
-  const notificationManager = new NotificationManager(
-    () => settingsManager.getSettings(),
-    (channel) => {
-      switch (channel.platform) {
-        case "feishu":
-          return new FeishuAdapter(
-            {
-              webhookUrl: channel.config.webhookUrl || "",
-              appId: channel.config.appId,
-              appSecret: channel.config.appSecret,
-            },
-            logN,
-          );
-        case "dingtalk":
-          return new DingTalkAdapter(
-            {
-              webhookUrl: channel.config.webhookUrl || "",
-              secret: channel.config.secret,
-              appKey: channel.config.appKey,
-              appSecret: channel.config.appSecret,
-            },
-            logN,
-          );
-        case "telegram":
-          return new TelegramAdapter(
-            {
-              botToken: channel.config.botToken || "",
-              chatId: channel.config.chatId || "",
-            },
-            logN,
-          );
-        default:
-          logN(`Unknown notification platform: ${channel.platform}`);
-          return null;
-      }
-    },
-    logN,
-  );
-
->>>>>>> 5f497a8 (feat: Iteration content)
   // ---- Create automation managers ----
   const autoCompactManager = new AutoCompactManager(
     settingsManager.getAutoCompact() || undefined,
@@ -161,7 +120,7 @@ function main() {
     getProjects: () => projectsManager.getProjects(),
     createSession: (options) => sessionManager.createSession(options),
     sendPrompt: (id, prompt) => sessionManager.sendPromptToSession(id, prompt),
-    getBridge: (name) => notificationManager.getBridges().get(name),
+    getBridge: (name) => undefined,
   });
 
   // ---- Wire broadcast callbacks ----
@@ -190,12 +149,6 @@ function main() {
     permissionManager.clearSession(id),
   );
 
-<<<<<<< HEAD
-  // Events → Sessions + Auto-Continue
-  eventProcessor.setEventHandler((event) => {
-    sessionManager.handleEvent(event);
-    autoContinueManager.handleEvent(event);
-=======
   // Events → Sessions + Notifications + Auto-Continue + Orchestrator
   eventProcessor.setEventHandler((event) => {
     sessionManager.handleEvent(event);
@@ -210,15 +163,6 @@ function main() {
       if (session) {
         const stopEvent = event as import("../shared/types.js").StopEvent;
 
-        // Direct per-session notification (existing behaviour)
-        if (notificationManager.hasActiveChannels()) {
-          notificationManager.notifySession(session, {
-            sessionName: session.name,
-            status: "completed",
-            response: stopEvent.response,
-          });
-        }
-
         // Orchestrated task completion (only fires when session was dispatched by orchestrator)
         taskOrchestrator.handleSessionStop(
           session.id,
@@ -226,7 +170,6 @@ function main() {
         );
       }
     }
->>>>>>> 5f497a8 (feat: Iteration content)
   });
 
   // WebSocket → History + Permissions
@@ -295,42 +238,6 @@ function main() {
   groupsManager.load();
   settingsManager.load();
 
-<<<<<<< HEAD
-=======
-  // ---- Start notification channels + wire inbound to orchestrator ----
-  notificationManager
-    .start()
-    .then(() => {
-      for (const [bridgeName, bridge] of notificationManager.getBridges()) {
-        bridge.onMessage((msg) => {
-          taskOrchestrator
-            .handleIncomingMessage(msg, bridgeName)
-            .catch((e) => log(`[Orchestrator] Error handling message: ${e}`));
-        });
-      }
-      log(
-        `[Orchestrator] Wired ${notificationManager.getBridges().size} bridge(s) for inbound messages`,
-      );
-    })
-    .catch((e) => log(`Notification start error: ${e}`));
-
-  // Reinitialize notifications when settings change, then re-wire inbound handlers
-  settingsManager.onChange(() => {
-    notificationManager
-      .reinitialize()
-      .then(() => {
-        for (const [bridgeName, bridge] of notificationManager.getBridges()) {
-          bridge.onMessage((msg) => {
-            taskOrchestrator
-              .handleIncomingMessage(msg, bridgeName)
-              .catch((e) => log(`[Orchestrator] Error handling message: ${e}`));
-          });
-        }
-      })
-      .catch((e) => log(`Notification reinit error: ${e}`));
-  });
-
->>>>>>> 5f497a8 (feat: Iteration content)
   // ---- Start git status tracking ----
   gitStatusManager.setUpdateHandler(({ sessionId, status }) => {
     const session = sessionManager.getSession(sessionId);
@@ -485,9 +392,7 @@ function cleanupOnStartup(
       const orphans = stdout
         .trim()
         .split("\n")
-        .filter(
-          (name) => name.startsWith("realm-") && name !== "realm-dev",
-        );
+        .filter((name) => name.startsWith("realm-") && name !== "realm-dev");
       if (orphans.length === 0) return;
       log(
         `Killing ${orphans.length} orphaned tmux session(s): ${orphans.join(", ")}`,

@@ -36,8 +36,12 @@ interface VoiceControlDeps {
 }
 
 /** Get SpeechRecognition constructor (handles webkit prefix) */
-function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
-  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+function getSpeechRecognitionCtor(): (new () => any) | null {
+  return (
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition ||
+    null
+  );
 }
 
 // ---- Voice language preference (independent of UI locale) ----
@@ -429,7 +433,7 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
 
   // ---- SpeechRecognition events ----
 
-  recognition.onresult = (event: SpeechRecognitionEvent) => {
+  recognition.onresult = (event: any) => {
     let finalTranscript = "";
     let interimTranscript = "";
 
@@ -461,7 +465,7 @@ export function setupVoiceControl(deps: VoiceControlDeps): VoiceState | null {
     }
   };
 
-  recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+  recognition.onerror = (event: any) => {
     if (event.error === "no-speech") return;
     if (event.error === "aborted") return;
 

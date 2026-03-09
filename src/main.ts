@@ -910,7 +910,6 @@ function setupManagedSessions(): void {
           llmSelect.appendChild(opt);
         }
       }
-
     } catch {
       // Settings fetch failed — silently skip
     }
@@ -1061,7 +1060,6 @@ function setupManagedSessions(): void {
         "session-llm-provider",
       ) as HTMLSelectElement;
       if (llmSelect?.value) llmProvider = llmSelect.value;
-
     }
 
     // Capture hint before closing modal (closeModal clears it)
@@ -3865,8 +3863,7 @@ function setupSettingsModal(): void {
     renderSettingsCards();
 
     // Restore last active tab
-    const savedTab =
-      localStorage.getItem("realm-settings-tab") || "general";
+    const savedTab = localStorage.getItem("realm-settings-tab") || "general";
     switchSettingsTab(savedTab);
 
     modal.classList.add("visible");
@@ -4035,7 +4032,6 @@ function setupSettingsModal(): void {
             renderSettingsCards();
           });
         });
-
     } catch (err) {
       console.warn("Failed to load settings:", err);
     }
@@ -4107,7 +4103,6 @@ function setupSettingsModal(): void {
       renderSettingsCards();
     });
   });
-
 }
 
 // Question Modal and Permission Modal moved to src/ui/QuestionModal.ts and src/ui/PermissionModal.ts
@@ -4783,7 +4778,7 @@ function init() {
   // Setup voice input (uses browser SpeechRecognition — no server needed)
   const voiceMicBtn = document.getElementById("voice-mode-btn");
   const hasSpeechRecognition = !!(
-    window.SpeechRecognition || window.webkitSpeechRecognition
+    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
   );
 
   if (hasSpeechRecognition) {

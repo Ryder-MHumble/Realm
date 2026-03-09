@@ -276,7 +276,7 @@
   gap: 1px;
   margin: 2px 0;
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(255, 255, 255, 0.015);
 }
 
@@ -431,20 +431,42 @@
   font-family: ui-monospace, SFMono-Regular, monospace;
 }
 
-/* Tool chain summary (show more/less) */
+/* Tool chain summary (show more/less) - collapsible group */
 .tool-chain-summary {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: 8px;
+  padding: 6px 10px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
-  transition: color 0.1s;
+  transition: all 0.15s ease;
+  background: rgba(255, 255, 255, 0.01);
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+  margin-left: 0;
+  font-weight: 500;
+  user-select: none;
 }
 
 .tool-chain-summary:hover {
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.03);
+  border-left-color: rgba(255, 255, 255, 0.15);
+}
+
+.tool-chain-summary span:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  transition: transform 0.2s ease;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.tool-chain-summary:hover span:first-child {
+  transform: rotate(90deg);
 }
 
 .tool-chain-summary .chain-count {
@@ -452,6 +474,21 @@
   padding: 1px 6px;
   border-radius: 8px;
   font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: 2px;
+}
+
+/* Hidden tools container */
+.tool-chain-hidden {
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.008);
+}
+
+.tool-chain-hidden.expanded {
+  display: flex;
 }
 
 /* ===== Assistant Response Bubble ===== */
